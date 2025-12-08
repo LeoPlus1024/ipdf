@@ -99,14 +99,14 @@ pub struct PDFDict {
 pub struct PDFNull;
 
 pub struct DirectObject {
-    obj_number: u32,
-    gen_number: u32,
+    obj_num: u32,
+    gen_num: u32,
     value: Box<dyn PDFObject>,
 }
 
 pub struct IndirectObject {
-    obj_number: u32,
-    gen_number: u32,
+    obj_num: u32,
+    gen_num: u32,
 }
 
 pub struct PDFStream;
