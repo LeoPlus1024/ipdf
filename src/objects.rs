@@ -7,6 +7,10 @@ pub enum PDFObjectKind {
     String,
     Array,
     Dict,
+    Null,
+    DirectObject,
+    IndirectObject,
+    Stream
 }
 pub trait PDFObject {
     /// Returns the bool value if the object is a bool.
@@ -36,6 +40,26 @@ pub trait PDFObject {
 
     /// Returns the dict value if the object is a dict.
     fn as_dict(&self) -> Option<&PDFDict> {
+        None
+    }
+
+    /// Returns the null value if the object is a null.
+    fn as_null(&self) -> Option<&PDFNull> {
+        None
+    }
+
+    /// Returns the direct object value if the object is a direct object.
+    fn as_direct_object(&self) -> Option<&DirectObject> {
+        None
+    }
+
+    /// Returns the indirect object value if the object is an indirect object.
+    fn as_indirect_object(&self) -> Option<&IndirectObject> {
+        None
+    }
+
+    /// Returns the stream value if the object is a stream.
+    fn as_stream(&self) -> Option<&PDFStream> {
         None
     }
 
@@ -72,6 +96,21 @@ pub struct PDFDict {
     entries: HashMap<PDFNamed, Box<dyn PDFObject>>,
 }
 
+pub struct PDFNull;
+
+pub struct DirectObject {
+    obj_number: u32,
+    gen_number: u32,
+    value: Box<dyn PDFObject>,
+}
+
+pub struct IndirectObject {
+    obj_number: u32,
+    gen_number: u32,
+}
+
+pub struct PDFStream;
+
 macro_rules! register_pdf_object {
     ($(($kind:ident,$tt:ty,$imp:ident)),+$(,)?) => {
         $(
@@ -93,5 +132,9 @@ register_pdf_object!(
     (Named, PDFNamed, as_named),
     (String, PDFString, as_string),
     (Array, PDFArray, as_array),
-    (Dict, PDFDict, as_dict)
+    (Dict, PDFDict, as_dict),
+    (Null, PDFNull, as_null),
+    (DirectObject, DirectObject, as_direct_object),
+    (IndirectObject, IndirectObject, as_indirect_object),
+    (Stream, PDFStream, as_stream)
 );
