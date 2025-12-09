@@ -1,5 +1,5 @@
 use crate::bytes::{line_ending, literal_to_u64};
-use crate::error::error_kind::INVALID_PDF_FILE;
+use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY, INVALID_PDF_FILE};
 use crate::objects::{Entry, Xref};
 use crate::sequence::Sequence;
 use crate::vpdf::PDFVersion;
@@ -33,15 +33,19 @@ pub(crate) fn parse_xref(sequence: &mut impl Sequence) -> crate::error::Result<X
     let values = xref_meta.split_whitespace().collect::<Vec<&str>>();
     let obj_num = values[0].parse::<u64>()?;
     let length = values[1].parse::<u64>()?;
-    let mut entries = Vec::<Entry>::new();
-    for _ in 0..length {
+    let mut entries = Vec::<Entry>::with_capacity(length as usize);
+    for i in 0..length {
         let line = sequence.read_line()?;
-        String::from_utf8(line)?;
+        if line.len() != 18 {
+            return Err(INVALID_CROSS_TABLE_ENTRY.into());
+        }
+        let entry:Entry = String::from_utf8(line)?.try_into()?;
+        entries.push(entry)
     }
     Ok(Xref {
         obj_num,
         length,
-        entries: vec![],
+        entries,
     })
 }
 

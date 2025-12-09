@@ -21,6 +21,6 @@ fn vpdf_test() -> Result<()> {
 fn parse_pdf() -> Result<()> {
     let file = std::fs::File::open("document/pdfreference1.0.pdf")?;
     let sequence = FileSequence::new(file);
-    let t = PDFDocument::new(sequence)?;
+    let document = PDFDocument::new(sequence)?;
     Ok(())
 }

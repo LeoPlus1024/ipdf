@@ -21,9 +21,10 @@ error_kind!(
     (STD_IO_ERROR, 1001, "Std IO Error"),
     (INVALID_PDF_FILE, 1002, "Invalid PDF file"),
     (TRAILER_NOT_FOUND, 1003, "Trailer not found"),
-    (EOF, 1004, "EOF"),
+    (EOF, 1004, "End of file"),
     (INVALID_UTF8_STR,1005, "Invalid UTF8 string"),
     (INT_PARSE_ERROR,1006, "Int parse error"),
+    (INVALID_CROSS_TABLE_ENTRY,1007, "Invalid cross table entry")
 );
 
 #[derive(Debug)]
