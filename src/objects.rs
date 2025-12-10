@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::fs::Metadata;
 use crate::error::Error;
 use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY};
 
+#[derive(PartialEq)]
 pub enum PDFObjectKind {
     Bool,
     Number,
@@ -102,13 +104,13 @@ pub struct PDFNull;
 
 pub struct DirectObject {
     obj_num: u32,
-    gen_num: u32,
+    gen_num: u16,
     value: Box<dyn PDFObject>,
 }
 
 pub struct IndirectObject {
     obj_num: u32,
-    gen_num: u32,
+    gen_num: u16,
 }
 
 pub struct PDFStream;
@@ -149,12 +151,18 @@ pub(crate) enum EntryState {
 
 pub struct Entry {
     state: EntryState,
-    gen_num: u64,
+    /// The maximum generation number is 65535. Once that number is reached, that entry in the crossreference table will not be reused.
+    gen_num: u16,
 }
 pub struct Xref {
     pub(crate) obj_num: u64,
     pub(crate) length: u64,
     pub(crate) entries: Vec<Entry>,
+}
+
+pub struct Trailer {
+    pub(crate) metadata: PDFDict,
+    pub(crate) byte_offset: u64,
 }
 
 impl TryFrom<String> for Entry {
@@ -171,7 +179,7 @@ impl TryFrom<String> for Entry {
             "f" => EntryState::Deleted(value),
             _ => return Err(INVALID_CROSS_TABLE_ENTRY.into())
         };
-        let gen_num = values[1].parse::<u64>()?;
+        let gen_num = values[1].parse::<u16>()?;
         Ok(Entry {
             state,
             gen_num,

@@ -8,6 +8,8 @@ pub trait Sequence {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
     /// Read a line data until encounter line delimiter
     fn read_line(&mut self) -> Result<Vec<u8>>;
+    /// Read a line data as string until encounter line delimiter
+    fn read_line_str(&mut self) -> Result<String>;
     fn seek(&mut self, pos: u64) -> Result<u64>;
     fn size(&self) -> Result<u64>;
 }
@@ -68,6 +70,13 @@ impl Sequence for FileSequence {
             buf.extend_from_slice(&bytes[offset..n]);
         }
     }
+
+    fn read_line_str(&mut self) -> Result<String> {
+        let buf = self.read_line()?;
+        let text = String::from_utf8(buf)?;
+        Ok(text)
+    }
+
 
     fn seek(&mut self, pos: u64) -> Result<u64> {
         let n = self.file.seek(SeekFrom::Start(pos))?;

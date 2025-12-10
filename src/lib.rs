@@ -5,3 +5,4 @@ pub mod objects;
 pub mod document;
 pub mod sequence;
 pub mod parser;
+mod constants;

@@ -1,78 +1,62 @@
-use crate::bytes::{line_ending, literal_to_u64};
-use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY, INVALID_PDF_FILE};
-use crate::objects::{Entry, Xref};
+use crate::objects::{PDFNull, PDFObject};
 use crate::sequence::Sequence;
-use crate::vpdf::PDFVersion;
+use crate::error::Result;
+use crate::objects::PDFObjectKind::Dict;
+use crate::parser::Token::{Delimiter, Illegal, _None};
 
-
-pub(crate) fn parse_version(sequence: &mut impl Sequence) -> crate::error::Result<PDFVersion> {
-    let mut buf = [0u8; 1024];
-    let n = sequence.read(&mut buf)?;
-    if n < 8 {
-        return Err(INVALID_PDF_FILE.into());
-    }
-    if buf.len() < 8
-        || buf[0] != 37
-        || buf[1] != 80
-        || buf[2] != 68
-        || buf[3] != 70
-        || buf[4] != 45
-    {
-        return Err(INVALID_PDF_FILE.into());
-    }
-    let version = String::from_utf8(buf[5..8].to_vec())?;
-    Ok(version.try_into()?)
+struct Tokenizer<'a> {
+    buf: Vec<u8>,
+    sequence: Box<&'a mut dyn Sequence>,
 }
 
-pub(crate) fn parse_xref(sequence: &mut impl Sequence) -> crate::error::Result<Xref> {
-    let offset = parse_trailer(sequence)?;
-    sequence.seek(offset)?;
-    // Skip xref
-    sequence.read_line()?;
-    let xref_meta = String::from_utf8(sequence.read_line()?)?;
-    let values = xref_meta.split_whitespace().collect::<Vec<&str>>();
-    let obj_num = values[0].parse::<u64>()?;
-    let length = values[1].parse::<u64>()?;
-    let mut entries = Vec::<Entry>::with_capacity(length as usize);
-    for i in 0..length {
-        let line = sequence.read_line()?;
-        if line.len() != 18 {
-            return Err(INVALID_CROSS_TABLE_ENTRY.into());
-        }
-        let entry:Entry = String::from_utf8(line)?.try_into()?;
-        entries.push(entry)
-    }
-    Ok(Xref {
-        obj_num,
-        length,
-        entries,
-    })
+enum Token {
+    Bool(bool),
+    Keyword(String),
+    Number(String),
+    Delimiter(char),
+    Illegal,
+    _None
 }
 
-pub(crate) fn parse_trailer(sequence: &mut impl Sequence) -> crate::error::Result<u64> {
-    let size = sequence.size()?;
-    let pos = if size > 1024 { size - 1024 } else { 0 };
-    let mut buf = [0u8; 1024];
-    sequence.seek(pos)?;
-    let n = sequence.read(&mut buf)?;
-    let mut list = Vec::<u8>::new();
-    let mut index = 0;
-    for i in (0..n).rev() {
-        // 't'
-        let b = buf[i];
-        if b == 102 {
-            break;
+impl<'a> Tokenizer<'a> {
+    fn new(sequence: &'a mut impl Sequence) -> Self {
+        Self {
+            sequence: Box::new(sequence),
+            buf: Vec::with_capacity(1024),
         }
-        // '%'
-        if b == 37 {
-            index = i;
-        } else {
-            if index != 0 && !line_ending(b) {
-                list.push(b);
+    }
+
+    fn next_token(&mut self) -> Result<Token> {
+        let option = self.next_byte()?;
+        if option.is_none() {
+            return Ok(_None);
+        }
+        let token = match option.unwrap() {
+            b'<' => self.parse_dict_or_ps_str()?,
+            _ => Illegal
+        };
+        Ok(token)
+    }
+
+    fn parse_dict_or_ps_str(&mut self)->Result<Token> {
+        Ok(Delimiter('<'))
+    }
+
+    /// Read next byte
+    fn next_byte(&mut self) -> Result<Option<u8>> {
+        let buf = &mut self.buf;
+        if buf.is_empty() {
+            let n = self.sequence.read(buf)?;
+            if n == 0 {
+                return Ok(None);
             }
         }
+        Ok(Some(buf.remove(0)))
     }
-    list.reverse();
-    Ok(literal_to_u64(&list))
 }
 
+pub(crate) fn parse(sequence: &mut impl Sequence) -> Result<impl PDFObject> {
+    let tokenizer = Tokenizer::new(sequence);
+
+    Ok(PDFNull)
+}

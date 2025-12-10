@@ -24,7 +24,8 @@ error_kind!(
     (EOF, 1004, "End of file"),
     (INVALID_UTF8_STR,1005, "Invalid UTF8 string"),
     (INT_PARSE_ERROR,1006, "Int parse error"),
-    (INVALID_CROSS_TABLE_ENTRY,1007, "Invalid cross table entry")
+    (INVALID_CROSS_TABLE_ENTRY,1007, "Invalid cross table entry"),
+    (TRAILER_EXCEPT_A_DICT,1008, "Trailer except a dict"),
 );
 
 #[derive(Debug)]
