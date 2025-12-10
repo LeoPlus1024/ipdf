@@ -1,6 +1,6 @@
-use std::num::ParseIntError;
+use std::num::{ParseFloatError, ParseIntError};
 use std::string::FromUtf8Error;
-use crate::error::error_kind::{INT_PARSE_ERROR, INVALID_UTF8_STR, STD_IO_ERROR};
+use crate::error::error_kind::{FLOAT_PARSE_ERROR, INT_PARSE_ERROR, INVALID_UTF8_STR, STD_IO_ERROR};
 
 macro_rules! error_kind {
     ($(($id:ident,$code:literal,$message:literal)),+$(,)?) => {
@@ -26,6 +26,10 @@ error_kind!(
     (INT_PARSE_ERROR,1006, "Int parse error"),
     (INVALID_CROSS_TABLE_ENTRY,1007, "Invalid cross table entry"),
     (TRAILER_EXCEPT_A_DICT,1008, "Trailer except a dict"),
+    (INVALID_NUMBER,1009, "Invalid number"),
+    (FLOAT_PARSE_ERROR,1010, "Float parse error"),
+    (UNKNOWN_TOKEN,1011, "Unknown token"),
+    (EXCEPT_TOKEN,1012, "Except a token"),
 );
 
 #[derive(Debug)]
@@ -37,6 +41,17 @@ struct Inner {
 #[derive(Debug)]
 pub struct Error {
     inner: Inner,
+}
+
+impl Error {
+    pub(crate) fn new(kind: Kind, message: String) -> Self {
+        Self {
+            inner: Inner {
+                code: kind.0,
+                message,
+            },
+        }
+    }
 }
 
 impl From<Kind> for Error {
@@ -62,11 +77,11 @@ impl From<std::io::Error> for Error {
 }
 
 impl From<FromUtf8Error> for Error {
-    fn from(value: FromUtf8Error) -> Self {
+    fn from(e: FromUtf8Error) -> Self {
         Self {
             inner: Inner {
                 code: INVALID_UTF8_STR.0,
-                message: value.to_string(),
+                message: e.to_string(),
             },
         }
     }
@@ -74,11 +89,23 @@ impl From<FromUtf8Error> for Error {
 
 
 impl From<ParseIntError> for Error{
-    fn from(value: ParseIntError) -> Self {
+    fn from(e: ParseIntError) -> Self {
         Self {
             inner: Inner {
                 code: INT_PARSE_ERROR.0,
-                message: value.to_string(),
+                message: e.to_string(),
+            },
+        }
+    }
+}
+
+impl From<ParseFloatError> for Error {
+    fn from(e: ParseFloatError) -> Self {
+
+        Self {
+            inner: Inner {
+                code: FLOAT_PARSE_ERROR.0,
+                message: e.to_string(),
             },
         }
     }

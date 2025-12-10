@@ -1,90 +1,36 @@
 use std::collections::HashMap;
-use std::fs::Metadata;
 use crate::error::Error;
 use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY};
 
-#[derive(PartialEq)]
-pub enum PDFObjectKind {
-    Bool,
-    Number,
-    Named,
-    String,
-    Array,
-    Dict,
+pub enum PDFObject{
+    Bool(PDFBool),
+    Number(PDFNumber),
+    Named(PDFNamed),
+    String(PDFString),
+    Array(PDFArray),
+    Dict(PDFDict),
     Null,
-    DirectObject,
-    IndirectObject,
-    Stream
-}
-pub trait PDFObject {
-    /// Returns the bool value if the object is a bool.
-    fn as_bool(&self) -> Option<&PDFBool> {
-        None
-    }
-
-    /// Returns the number value if the object is a number.
-    fn as_number(&self) -> Option<&PDFNumber> {
-        None
-    }
-
-    /// Returns the named value if the object is a named.
-    fn as_named(&self) -> Option<&PDFNamed> {
-        None
-    }
-
-    /// Returns the string value if the object is a string.
-    fn as_string(&self) -> Option<&PDFString> {
-        None
-    }
-
-    /// Returns the array value if the object is an array.
-    fn as_array(&self) -> Option<&PDFArray> {
-        None
-    }
-
-    /// Returns the dict value if the object is a dict.
-    fn as_dict(&self) -> Option<&PDFDict> {
-        None
-    }
-
-    /// Returns the null value if the object is a null.
-    fn as_null(&self) -> Option<&PDFNull> {
-        None
-    }
-
-    /// Returns the direct object value if the object is a direct object.
-    fn as_direct_object(&self) -> Option<&DirectObject> {
-        None
-    }
-
-    /// Returns the indirect object value if the object is an indirect object.
-    fn as_indirect_object(&self) -> Option<&IndirectObject> {
-        None
-    }
-
-    /// Returns the stream value if the object is a stream.
-    fn as_stream(&self) -> Option<&PDFStream> {
-        None
-    }
-
-    /// Returns the kind of the object.
-    fn kind(&self) -> PDFObjectKind;
+    DirectObject(DirectObject),
+    IndirectObject(IndirectObject),
+    Stream(PDFStream),
 }
 
 pub struct PDFBool {
     value: bool,
 }
 
+#[derive(Eq, Hash, PartialEq)]
 pub struct PDFNamed {
-    name: String,
-    value: Box<dyn PDFObject>,
+    pub(crate) name: String,
 }
 
+#[derive(PartialEq)]
 pub enum Int {
     Signed(i64),
     Unsigned(u64),
 }
 
+#[derive(PartialEq)]
 pub enum PDFNumber {
     Int(Int),
     Real(f64),
@@ -93,19 +39,17 @@ pub enum PDFNumber {
 pub struct PDFString {}
 
 pub struct PDFArray {
-    elements: Vec<Box<dyn PDFObject>>,
+    elements: Vec<PDFObject>,
 }
 
 pub struct PDFDict {
-    entries: HashMap<PDFNamed, Box<dyn PDFObject>>,
+    pub(crate) entries: HashMap<PDFNamed, PDFObject>,
 }
-
-pub struct PDFNull;
 
 pub struct DirectObject {
     obj_num: u32,
     gen_num: u16,
-    value: Box<dyn PDFObject>,
+    value: Box<PDFObject>,
 }
 
 pub struct IndirectObject {
@@ -115,33 +59,6 @@ pub struct IndirectObject {
 
 pub struct PDFStream;
 
-macro_rules! register_pdf_object {
-    ($(($kind:ident,$tt:ty,$imp:ident)),+$(,)?) => {
-        $(
-        impl PDFObject for $tt {
-            fn $imp(&self) -> Option<&$tt> {
-                Some(self)
-            }
-               fn kind(&self) -> PDFObjectKind {
-                    PDFObjectKind::$kind
-                }
-            }
-        )+
-    };
-}
-
-register_pdf_object!(
-    (Bool, PDFBool, as_bool),
-    (Number, PDFNumber, as_number),
-    (Named, PDFNamed, as_named),
-    (String, PDFString, as_string),
-    (Array, PDFArray, as_array),
-    (Dict, PDFDict, as_dict),
-    (Null, PDFNull, as_null),
-    (DirectObject, DirectObject, as_direct_object),
-    (IndirectObject, IndirectObject, as_indirect_object),
-    (Stream, PDFStream, as_stream)
-);
 
 pub(crate) enum EntryState {
     Using(u64),

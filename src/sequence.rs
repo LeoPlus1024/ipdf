@@ -1,3 +1,4 @@
+use std::cmp::min;
 use crate::bytes::{count_leading_line_endings, line_ending};
 use crate::error::Result;
 use crate::error::error_kind::EOF;
@@ -39,9 +40,14 @@ impl FileSequence {
 
 impl Sequence for FileSequence {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if !self.buf.is_empty() {
+            let len = self.buf.len();
+            let n = min(len, buf.len());
+            buf[0..n].copy_from_slice(&self.buf[0..n]);
+            self.buf.drain(0..n);
+            return Ok(n);
+        }
         let n = self.file.read(buf)?;
-        // Due to read, the buffer is no longer valid
-        self.buf.clear();
         Ok(n)
     }
 

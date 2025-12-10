@@ -2,12 +2,10 @@ use crate::bytes::{line_ending, literal_to_u64};
 use crate::constants::TRAILER;
 use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY, INVALID_PDF_FILE, TRAILER_EXCEPT_A_DICT};
 use crate::error::Result;
-use crate::objects::{Entry, Xref};
-use crate::objects::PDFObjectKind::Dict;
+use crate::objects::{Entry, PDFObject, Xref};
 use crate::parser::parse;
 use crate::sequence::Sequence;
 use crate::vpdf::PDFVersion;
-use crate::objects::PDFObject;
 
 /// Represent a PDF document
 pub struct PDFDocument {
@@ -83,11 +81,10 @@ fn parse_xref(offset: u64, sequence: &mut impl Sequence) -> Result<Vec<Xref>> {
     let xrefs = vec![xref];
     let next_text = sequence.read_line_str()?;
     if next_text == TRAILER {
-        let object = parse(sequence)?;
-        // Trailer except a dict
-        if object.kind() != Dict {
-            return Err(TRAILER_EXCEPT_A_DICT.into());
-        }
+        let trailer = match parse(sequence)? {
+            PDFObject::Dict(dict) => dict,
+            _ =>return Err(TRAILER_EXCEPT_A_DICT.into())
+        };
     }
     Ok(xrefs)
 }
