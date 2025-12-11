@@ -1,9 +1,9 @@
 use crate::constants::*;
-use crate::error::error_kind::{EOF, EXCEPT_TOKEN, INVALID_NUMBER, UNKNOWN_TOKEN};
+use crate::error::error_kind::{EOF, EXCEPT_TOKEN, ILLEGAL_TOKEN, INVALID_NUMBER, STR_NOT_ENCODED, UNKNOWN_TOKEN};
 use crate::error::{Error, Result};
 use crate::objects::Int::Unsigned;
-use crate::objects::{PDFDict, PDFNamed, PDFNumber, PDFObject, PDFStream};
-use crate::parser::Token::{Delimiter, Number};
+use crate::objects::{PDFDict, PDFNamed, PDFNumber, PDFObject, PDFString};
+use crate::parser::Token::{Delimiter, Id, Number};
 use crate::sequence::Sequence;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -22,21 +22,6 @@ enum Token {
     Delimiter(String),
 }
 
-impl Token {
-    fn except_delimiter(&self, chr: char)->Result<()> {
-        let tmp = chr.to_string();
-        match self {
-            Delimiter(delimiter) => {
-                if *delimiter == tmp {
-                    return Ok(());
-                }
-                Err(Error::new(EXCEPT_TOKEN, format!("Expected {} but got {}", tmp, delimiter)))
-            },
-            _ => Err(Error::new(UNKNOWN_TOKEN, format!("Excepted a {}",tmp))),
-        }
-    }
-}
-
 impl<'a> Tokenizer<'a> {
     fn new(sequence: &'a mut impl Sequence) -> Self {
         Self {
@@ -52,24 +37,30 @@ impl<'a> Tokenizer<'a> {
         }
         let chr = option.unwrap();
         let token = match chr {
-            '<' => match self.next_chr_was('<') {
+            LEFT_BRACKET => match self.next_chr_was('<') {
                 true => Delimiter("<<".into()),
-                false => Delimiter(">>".into()),
+                false => Delimiter("<".into()),
             },
-            '>' => match self.next_chr_was('>') {
+            RIGHT_BRACKET => match self.next_chr_was('>') {
                 true => Delimiter(">>".into()),
                 false => Delimiter(">".into()),
             },
-            '/' => Delimiter("/".into()),
-            '(' | ')' => Delimiter(chr.into()),
-            '\r' | '\n' => self.next_token()?,
+            SPLASH |  LEFT_PARENTHESIS | RIGHT_PARENTHESIS => Delimiter(chr.into()),
+            // CRLF
+            CR | LF | WHITE_SPACE => self.next_token()?,
             chr => {
                 // If the character is a digit, then we need to read the number
                 if chr.is_digit(10) {
                     let value = self.num_deco(chr)?;
                     Number(value)
-                } else {
-                    return Err(UNKNOWN_TOKEN.into())
+                }
+                // Identifier
+                else {
+                    let range =self.loop_util(&END_CHARS,|_c| Ok(false))?;
+                    let mut buf = self.buf.drain(range).collect::<Vec<u8>>();
+                    buf.insert(0, chr as u8);
+                    let id = String::from_utf8(buf)?;
+                    Id(id)
                 }
             }
         };
@@ -77,7 +68,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn num_deco(&mut self, chr: char) -> Result<PDFNumber> {
-        let range = self.loop_util(|c| {
+        let range = self.loop_util(&END_CHARS, |c| {
             let is_digit = c.is_digit(10);
             if !is_digit {
                 return Err(INVALID_NUMBER.into());
@@ -95,13 +86,12 @@ impl<'a> Tokenizer<'a> {
         Ok(number)
     }
 
-    fn loop_util<F>(&mut self, func: F) -> Result<Range<usize>>
+    fn loop_util<F>(&mut self, end_chars: &[char], mut func: F) -> Result<Range<usize>>
     where
-        F: Fn(char) -> Result<bool>,
+        F: FnMut(char) -> Result<bool>,
     {
         let mut index = 0usize;
         let buf = &mut self.buf;
-        let end_chars = &END_CHARS;
         'ext: loop {
             if buf.is_empty() {
                 let n = self.sequence.read(buf)?;
@@ -173,6 +163,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             match delimiter.as_str() {
                 "<<" => parse_dict(tokenizer),
                 "/" => parse_named(tokenizer),
+                "<" | "(" => parse_string(tokenizer, delimiter == "("),
                 &_ => todo!()
             }
         }
@@ -182,7 +173,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
 
 
 fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<PDFObject> {
-    let mut entries =HashMap::<PDFNamed, PDFObject>::new();
+    let mut entries =HashMap::<PDFNamed, Option<PDFObject>>::new();
     loop {
         let token = tokenizer.next_token()?;
         if let Delimiter(ref delimiter) =  token {
@@ -190,21 +181,53 @@ fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<PDFObject> {
                 return Ok(PDFObject::Dict(PDFDict { entries }));
             }
         }
-        match parser0(&mut tokenizer, token)? {
-            PDFObject::Named(name) => {
-                let token = tokenizer.next_token()?;
-                let value = parser0(&mut tokenizer, token)?;
-                entries.insert(name, value);
+        let object = parser0(&mut tokenizer, token)?;
+        if let PDFObject::Named(named) = object {
+            let token = tokenizer.next_token()?;
+            if let Delimiter(ref delimiter) = token {
+                let dict_close = *delimiter == DOUBLE_RIGHT_BRACKET;
+                let is_named = *delimiter == String::from(SPLASH);
+                if is_named || dict_close {
+                    entries.insert(named, None);
+                    if dict_close {
+                        return Ok(PDFObject::Dict(PDFDict { entries }));
+                    }
+                    continue;
+                }
             }
-            _ => return Err(Error::new(UNKNOWN_TOKEN, "Except a named token.".into()))
+            let value = parser0(&mut tokenizer, token)?;
+            entries.insert(named, Some(value));
         }
+        return Err(Error::new(UNKNOWN_TOKEN, "Except a named token.".into()));
+
     }
 }
 
-fn parse_named(tokenizer: &mut Tokenizer)->Result<PDFObject>{
+fn parse_named(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
     let token = tokenizer.next_token()?;
-    if let Token::Id(name) = token {
+    if let Id(name) = token {
         return Ok(PDFObject::Named(PDFNamed { name }));
     }
     Err(Error::new(EXCEPT_TOKEN,"Except a identifier token.".to_string()))
+}
+
+fn parse_string(tokenizer: &mut Tokenizer, post_script: bool) -> Result<PDFObject> {
+    let end_chr = if post_script { ')' } else { '>' };
+    let mut is_escape = true;
+    let result = tokenizer.loop_util(&[], |chr| {
+        is_escape = (chr == ESCAPE) && !is_escape;
+        Ok(is_escape || chr == end_chr)
+    });
+    match result {
+        Ok(range) => {
+            let buf = tokenizer.buf.drain(range).collect::<Vec<u8>>();
+            let pdf_str = if post_script {
+                PDFString::Hex(buf)
+            } else {
+                PDFString::Literal(buf)
+            };
+            Ok(PDFObject::String(pdf_str))
+        }
+        Err(_e) => Err(STR_NOT_ENCODED.into())
+    }
 }

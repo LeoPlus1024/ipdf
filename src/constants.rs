@@ -11,8 +11,10 @@ pub(crate) const LF: char = '\n';
 
 pub(crate) const ESCAPE: char = '\\';
 
-pub(crate) const SPACE: char = ' ';
-pub(crate) const END_CHARS: [char; 7] = [
+pub(crate) const WHITE_SPACE: char = ' ';
+
+pub(crate) const SPLASH: char = '/';
+pub(crate) const END_CHARS: [char; 9] = [
     LEFT_BRACKET,
     RIGHT_BRACKET,
     LEFT_PARENTHESIS,
@@ -20,4 +22,6 @@ pub(crate) const END_CHARS: [char; 7] = [
     CR,
     LF,
     ESCAPE,
+    WHITE_SPACE,
+    SPLASH
 ];

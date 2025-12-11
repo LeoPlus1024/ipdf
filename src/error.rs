@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
 use std::string::FromUtf8Error;
 use crate::error::error_kind::{FLOAT_PARSE_ERROR, INT_PARSE_ERROR, INVALID_UTF8_STR, STD_IO_ERROR};
@@ -30,6 +31,8 @@ error_kind!(
     (FLOAT_PARSE_ERROR,1010, "Float parse error"),
     (UNKNOWN_TOKEN,1011, "Unknown token"),
     (EXCEPT_TOKEN,1012, "Except a token"),
+    (STR_NOT_ENCODED,1013, "String not encoded"),
+    (ILLEGAL_TOKEN,1014, "Illegal token"),
 );
 
 #[derive(Debug)]

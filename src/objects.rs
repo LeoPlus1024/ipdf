@@ -10,8 +10,8 @@ pub enum PDFObject{
     Array(PDFArray),
     Dict(PDFDict),
     Null,
-    DirectObject(DirectObject),
-    IndirectObject(IndirectObject),
+    DirectObject(PDFDirectObject),
+    IndirectObject(PDFIndirectObject),
     Stream(PDFStream),
 }
 
@@ -36,23 +36,27 @@ pub enum PDFNumber {
     Real(f64),
 }
 
-pub struct PDFString {}
+
+pub enum PDFString {
+    Literal(Vec<u8>),
+    Hex(Vec<u8>),
+}
 
 pub struct PDFArray {
     elements: Vec<PDFObject>,
 }
 
 pub struct PDFDict {
-    pub(crate) entries: HashMap<PDFNamed, PDFObject>,
+    pub(crate) entries: HashMap<PDFNamed, Option<PDFObject>>,
 }
 
-pub struct DirectObject {
+pub struct PDFDirectObject {
     obj_num: u32,
     gen_num: u16,
     value: Box<PDFObject>,
 }
 
-pub struct IndirectObject {
+pub struct PDFIndirectObject {
     obj_num: u32,
     gen_num: u16,
 }
