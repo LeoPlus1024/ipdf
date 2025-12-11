@@ -4,5 +4,6 @@ pub mod error;
 pub mod objects;
 pub mod document;
 pub mod sequence;
-pub mod parser;
-mod constants;
+pub(crate) mod parser;
+pub(crate) mod constants;
+pub(crate) mod tokenizer;
