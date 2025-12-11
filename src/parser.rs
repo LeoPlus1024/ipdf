@@ -1,12 +1,9 @@
 use crate::constants::*;
-use crate::error::error_kind::{
-    EOF, EXCEPT_TOKEN, ILLEGAL_TOKEN, INVALID_NUMBER, INVALID_REAL_NUMBER, STR_NOT_ENCODED,
-    UNKNOWN_TOKEN,
-};
+use crate::error::error_kind::{EOF, EXCEPT_TOKEN, ILLEGAL_TOKEN, INVALID_NUMBER, INVALID_REAL_NUMBER, PARSE_UNSIGNED_VALUE_ERR, STR_NOT_ENCODED, UNKNOWN_TOKEN};
 use crate::error::{Error, Result};
 use crate::objects::Int::{Signed, Unsigned};
-use crate::objects::{PDFDict, PDFNamed, PDFNumber, PDFObject, PDFString};
-use crate::parser::Token::{Delimiter, Id, Number};
+use crate::objects::{PDFArray, PDFDict, PDFDirectObject, PDFIndirectObject, PDFNamed, PDFNumber, PDFObject, PDFString};
+use crate::parser::Token::{Delimiter, Eof, Id, Number};
 use crate::sequence::Sequence;
 use log::debug;
 use std::collections::HashMap;
@@ -18,13 +15,14 @@ struct Tokenizer<'a> {
     sequence: Box<&'a mut dyn Sequence>,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq,Clone)]
 enum Token {
     Id(String),
     Bool(bool),
     Keyword(String),
     Number(PDFNumber),
     Delimiter(String),
+    Eof
 }
 
 impl Token {
@@ -35,11 +33,48 @@ impl Token {
         false
     }
 
-    fn is_id(&self, str: &str) -> bool {
+    fn is_unsigned(&self) -> bool {
+        if let Number(PDFNumber::Int(Unsigned(num))) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_id(&self)->bool{
+        if let Id(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn id_is(&self, str: &str) -> bool {
         if let Id(id) = self {
             return id == str;
         }
         false
+    }
+
+    fn unsigned_num(&self) -> Result<u64> {
+        if let Number(PDFNumber::Int(Unsigned(num))) = self {
+            return Ok(*num)
+        }
+        Err(PARSE_UNSIGNED_VALUE_ERR.into())
+    }
+
+    fn except<F>(self, func: F) -> Result<Self>
+    where
+        F: Fn(&Token) -> bool,
+    {
+        let m = func(&self);
+        if !m {
+            return Err(Error::new(
+                EXCEPT_TOKEN,
+                "Token kind mistake.".into()
+            ));
+        }
+        Ok(self)
     }
 }
 
@@ -56,7 +91,11 @@ impl<'a> Tokenizer<'a> {
     where
         F: Fn(&Token) -> Result<bool>,
     {
-        let token = self.next_token()?;
+        let token = if let Some(chr) = self.next_chr()? {
+            self.chr2token(chr)?
+        } else {
+            Eof
+        };
         let mut m = false;
         if func(&token)? {
             m = func(&token)?;
@@ -72,9 +111,12 @@ impl<'a> Tokenizer<'a> {
         }
         let option = self.next_chr()?;
         if option.is_none() {
-            return Err(EOF.into());
+            return Ok(Eof)
         }
-        let chr = option.unwrap();
+        self.chr2token(option.unwrap())
+    }
+
+    fn chr2token(&mut self, chr: char) -> Result<Token> {
         let token = match chr {
             LEFT_BRACKET => match self.next_chr_was(LEFT_BRACKET) {
                 true => Delimiter(DOUBLE_LEFT_BRACKET.into()),
@@ -84,9 +126,7 @@ impl<'a> Tokenizer<'a> {
                 true => Delimiter(DOUBLE_RIGHT_BRACKET.into()),
                 false => Delimiter(RIGHT_BRACKET.into()),
             },
-            SPLASH | LEFT_PARENTHESIS | RIGHT_PARENTHESIS => Delimiter(chr.into()),
-            // CRLF
-            CR | LF | WHITE_SPACE => self.next_token()?,
+            SPLASH | LEFT_PARENTHESIS | RIGHT_PARENTHESIS | LEFT_SQUARE_BRACKET | RIGHT_SQUARE_BRACKET => Delimiter(chr.into()),
             ADD | SUB | DOT => self.num_deco(chr)?,
             chr => {
                 // If the character is a digit, then we need to read the number
@@ -196,6 +236,22 @@ impl<'a> Tokenizer<'a> {
             }
             buf.extend_from_slice(&bytes[0..n]);
         }
+        let len = buf.len();
+        let mut skip_cunt = 0;
+        for i in 0..len {
+            let b = buf[i];
+            if b == b'\r' || b == b'\n' || b == b' ' {
+                skip_cunt += 1;
+            } else {
+                break;
+            }
+        }
+        if skip_cunt > 0 {
+            buf.drain(0..skip_cunt);
+            if skip_cunt == buf.len() {
+                return Ok(None);
+            }
+        }
         let b = buf[0];
         let chr = char::from(b);
         let equal = func(chr);
@@ -217,31 +273,60 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
     match token {
         Delimiter(delimiter) => match delimiter.as_str() {
             DOUBLE_LEFT_BRACKET => parse_dict(tokenizer),
+            "[" => parse_array(tokenizer),
             "/" => parse_named(tokenizer),
             "<" | "(" => parse_string(tokenizer, delimiter == "("),
             &_ => todo!(),
         },
-        Number(value) => parse_num_obj(tokenizer, value),
+        Number(number) => match number {
+            PDFNumber::Int(Unsigned(value)) => {
+                let is_num = tokenizer.check_next_token(|token| Ok(token.is_unsigned()))?;
+                if !is_num {
+                    return Ok(PDFObject::Number(number));
+                }
+                let is_obj = tokenizer.check_next_token(|token| Ok(token.id_is(R) || token.id_is(OBJ)))?;
+                if is_obj {
+                    return parse_obj(tokenizer, Some(value))
+                }
+                Ok(PDFObject::Number(number))
+            }
+            _ => Ok(PDFObject::Number(number))
+        },
         _ => panic!(""),
     }
 }
 
-/// Parse number or Object or Indirect object
-fn parse_num_obj(tokenizer: &mut Tokenizer, number: PDFNumber) -> Result<PDFObject> {
-    let object = PDFObject::Number(number);
-    let is_num = tokenizer.check_next_token(|token| Ok(token.is_numer()))?;
-    if !is_num {
-        return Ok(object);
+fn parse_obj(tokenizer: &mut Tokenizer, option: Option<u64>) -> Result<PDFObject> {
+    let obj_num = match option {
+        Some(num) => num,
+        None => tokenizer.next_token()?.unsigned_num()?
+    };
+    let obj_gen_token = tokenizer.next_token()?.except(|token| token.is_unsigned())?;
+    let type_token = tokenizer.next_token()?.except(|token| token.is_id())?;
+    let gen_num = obj_gen_token.unsigned_num()?;
+    if let Id(ref id) = type_token {
+        let object = match id.as_str() {
+            OBJ => {
+                let metadata = parse_dict(tokenizer)?;
+                let object = PDFDirectObject {
+                    obj_num,
+                    gen_num,
+                    metadata: Box::new(metadata),
+                };
+                PDFObject::DirectObject(object)
+            },
+            _ => {
+                let object = PDFIndirectObject {
+                    obj_num,
+                    gen_num,
+                };
+                PDFObject::IndirectObject(object)
+            }
+        };
+        return Ok(object)
     }
-    let is_obj = tokenizer.check_next_token(|token| Ok(token.is_id(R) || token.is_id(OBJ)))?;
-    if !is_obj {
-        return Err(Error::new(ILLEGAL_TOKEN,"Except a object".into()));
-    }
-    parse_obj(tokenizer)
-}
+    Err(Error::new(EXCEPT_TOKEN, "Except a token with R or obj".to_string()))
 
-fn parse_obj(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
-    todo!()
 }
 fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<PDFObject> {
     let mut entries = HashMap::<PDFNamed, Option<PDFObject>>::new();
@@ -285,6 +370,21 @@ fn parse_named(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
     ))
 }
 
+fn parse_array(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
+    let mut elements = Vec::<PDFObject>::new();
+    loop {
+        let token = tokenizer.next_token()?;
+        if let Delimiter(ref delimiter) = token {
+            if delimiter == "]" {
+                return Ok(PDFObject::Array(PDFArray { elements }));
+            }
+        }
+        let object = parser0(tokenizer, token)?;
+        elements.push(object);
+
+    }
+}
+
 fn parse_string(tokenizer: &mut Tokenizer, post_script: bool) -> Result<PDFObject> {
     let end_chr = if post_script { ')' } else { '>' };
     let mut is_escape = true;
@@ -300,6 +400,8 @@ fn parse_string(tokenizer: &mut Tokenizer, post_script: bool) -> Result<PDFObjec
             } else {
                 PDFString::Literal(buf)
             };
+            // Remove '>' or ')'
+            tokenizer.buf.remove(0);
             Ok(PDFObject::String(pdf_str))
         }
         Err(_e) => Err(STR_NOT_ENCODED.into()),

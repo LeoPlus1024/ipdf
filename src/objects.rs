@@ -24,13 +24,13 @@ pub struct PDFNamed {
     pub(crate) name: String,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq,Clone)]
 pub enum Int {
     Signed(i64),
     Unsigned(u64),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq,Clone)]
 pub enum PDFNumber {
     Int(Int),
     Real(f64),
@@ -43,7 +43,7 @@ pub enum PDFString {
 }
 
 pub struct PDFArray {
-    elements: Vec<PDFObject>,
+    pub(crate) elements: Vec<PDFObject>,
 }
 
 pub struct PDFDict {
@@ -51,14 +51,14 @@ pub struct PDFDict {
 }
 
 pub struct PDFDirectObject {
-    obj_num: u32,
-    gen_num: u16,
-    value: Box<PDFObject>,
+    pub(crate) obj_num: u64,
+    pub(crate) gen_num: u64,
+    pub(crate) metadata: Box<PDFObject>,
 }
 
 pub struct PDFIndirectObject {
-    obj_num: u32,
-    gen_num: u16,
+    pub(crate) obj_num: u64,
+    pub(crate) gen_num: u64,
 }
 
 pub struct PDFStream;
