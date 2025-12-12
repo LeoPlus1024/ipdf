@@ -1,11 +1,32 @@
+## Here's my code:
 [package]
 name = "pdf-rs"
 version = "0.1.0"
 edition = "2024"
+authors = ["KuiYang <kui.yang@example.com>", "杨伯均 <bojun.yang@example.com>", "LeoPlus1024 <leoplus1024@example.com>"]
+description = "A PDF parsing library written in Rust"
+repository = "https://github.com/your-username/pdf-rs"
+license = "Apache-2.0"
+keywords = ["pdf", "parser", "rust", "parsing"]
+categories = ["parsing", "encoding", "text-processing"]
+readme = "README.md"
+documentation = "https://docs.rs/pdf-rs"
+homepage = "https://github.com/your-username/pdf-rs"
+exclude = [
+    "document/*",
+    "tests/*",
+]
 
 [[test]]
 name = "structure"
 path = "tests/structure.rs"
 
+[[test]]
+name = "document"
+path = "tests/document.rs"
+
 [dependencies]
 log = "0.4.29"
+
+[package.metadata.docs.rs]
+all-features = true

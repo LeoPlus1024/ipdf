@@ -1,17 +1,22 @@
+use crate::constants::pdf_key::{OBJ, R};
 use crate::constants::*;
-use crate::error::error_kind::{EXCEPT_TOKEN, STR_NOT_ENCODED, UNKNOWN_TOKEN};
+use crate::error::error_kind::{EOF, EXCEPT_TOKEN, ILLEGAL_TOKEN, STR_NOT_ENCODED};
 use crate::error::{Error, Result};
-use crate::objects::{PDFArray, PDFDict, PDFDirectObject, PDFIndirectObject, PDFNamed, PDFNumber, PDFObject, PDFString};
-use crate::sequence::Sequence;
-use std::collections::HashMap;
+use crate::objects::{Entry, EntryState, PDFArray, PDFDict, PDFDirectObject, PDFIndirectObject, PDFNamed, PDFNumber, PDFObject, PDFString, PDFXref};
+use crate::tokenizer::Token::{Delimiter, Id, Key, Number};
 use crate::tokenizer::{Token, Tokenizer};
-use crate::tokenizer::Token::{Delimiter, Id, Number};
+use std::collections::HashMap;
 
-pub(crate) fn parse(sequence: &mut impl Sequence) -> Result<PDFObject> {
-    let mut tokenizer = Tokenizer::new(sequence);
+pub(crate) fn parse<F>(mut tokenizer: &mut Tokenizer, visit: F) -> Result<Option<PDFObject>>
+where
+    F: Fn(&Token) -> bool,
+{
     let token = tokenizer.next_token()?;
+    if !visit(&token) {
+        return Ok(None);
+    }
     let object = parser0(&mut tokenizer, token)?;
-    Ok(object)
+    Ok(Some(object))
 }
 
 fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
@@ -23,13 +28,26 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             "<" | "(" => parse_string(tokenizer, delimiter == "("),
             &_ => todo!(),
         },
+        Key(key) => match key.as_str() {
+            pdf_key::XREF => parse_xref(tokenizer),
+            pdf_key::TRAILER => {
+                if let Delimiter(ref delimiter) = tokenizer.next_token()?{
+                    if *delimiter != DOUBLE_LEFT_BRACKET {
+                        return Err(Error::new(EXCEPT_TOKEN, format!("Trailer after must follow a '<<' but it was {}", delimiter)));
+                    }
+                    return parse_dict(tokenizer)
+                }
+                Err(Error::new(EXCEPT_TOKEN, "Trailer after must follow a dict".into()))
+            },
+            &_ => todo!(),
+        }
         Number(number) => match number {
             PDFNumber::Unsigned(value) => {
-                let is_num = tokenizer.check_next_token(|token| Ok(token.is_unsigned()))?;
+                let is_num = tokenizer.check_next_token(|token| Ok(token.is_u64()))?;
                 if !is_num {
                     return Ok(PDFObject::Number(number));
                 }
-                let is_obj = tokenizer.check_next_token(|token| Ok(token.id_is(R) || token.id_is(OBJ)))?;
+                let is_obj = tokenizer.check_next_token(|token| Ok(token.key_was(R) || token.key_was(OBJ)))?;
                 if is_obj {
                     return parse_obj(tokenizer, Some(value))
                 }
@@ -37,20 +55,48 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             }
             _ => Ok(PDFObject::Number(number))
         },
-        _ => panic!(""),
+        Token::Eof => Err(EOF.into()),
+        _ => Err(Error::new(ILLEGAL_TOKEN, format!("Illegal token:{}", token.to_string())))
     }
+}
+
+fn parse_xref(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
+    let obj_num = tokenizer.next_token()?.as_u64()?;
+    let length = tokenizer.next_token()?.as_u64()?;
+    let mut entries = Vec::<Entry>::new();
+    for i in 0..length {
+        let offset = tokenizer.next_token()?.as_u64()?;
+        let gen_num = tokenizer.next_token()?.as_u64()?;
+        let state = tokenizer.next_token()?.to_string();
+        let state = match state.as_str() {
+            "n" => EntryState::Using(offset),
+            "f" => EntryState::Deleted(offset),
+            _ => return Err(Error::new(EXCEPT_TOKEN, format!("Except a token with 'f' or 'n' but it is '{}'", state)))
+        };
+        let entry = Entry {
+            state,
+            gen_num,
+        };
+        entries.push(entry);
+    }
+    let xref = PDFXref {
+        obj_num,
+        length,
+        entries,
+    };
+    Ok(PDFObject::Xref(xref))
 }
 
 fn parse_obj(tokenizer: &mut Tokenizer, option: Option<u64>) -> Result<PDFObject> {
     let obj_num = match option {
         Some(num) => num,
-        None => tokenizer.next_token()?.unsigned_num()?
+        None => tokenizer.next_token()?.as_u64()?
     };
-    let obj_gen_token = tokenizer.next_token()?.except(|token| token.is_unsigned())?;
-    let type_token = tokenizer.next_token()?.except(|token| token.is_id())?;
-    let gen_num = obj_gen_token.unsigned_num()?;
-    if let Id(ref id) = type_token {
-        let object = match id.as_str() {
+    let obj_gen_token = tokenizer.next_token()?.except(|token| token.is_u64())?;
+    let type_token = tokenizer.next_token()?.except(|token| token.key_was(R) || token.key_was(OBJ))?;
+    let gen_num = obj_gen_token.as_u64()?;
+    if let Key(ref key) = type_token {
+        let object = match key.as_str() {
             OBJ => {
                 let metadata = parse_dict(tokenizer)?;
                 let object = PDFDirectObject {
@@ -99,7 +145,7 @@ fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<PDFObject> {
             let value = parser0(&mut tokenizer, token)?;
             entries.insert(named, Some(value));
         } else {
-            return Err(Error::new(UNKNOWN_TOKEN, "Except a named token.".into()));
+            return Err(Error::new(EXCEPT_TOKEN, "Except a named token.".into()));
         }
     }
 }

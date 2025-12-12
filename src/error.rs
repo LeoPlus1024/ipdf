@@ -17,6 +17,7 @@ pub(crate) type Kind = (u16, &'static str);
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Enumurate all error kind
 error_kind!(
     (INVALID_PDF_VERSION, 1000, "Invalid PDF version"),
     (STD_IO_ERROR, 1001, "Std IO Error"),
@@ -29,12 +30,12 @@ error_kind!(
     (TRAILER_EXCEPT_A_DICT,1008, "Trailer except a dict"),
     (INVALID_NUMBER,1009, "Invalid number"),
     (FLOAT_PARSE_ERROR,1010, "Float parse error"),
-    (UNKNOWN_TOKEN,1011, "Unknown token"),
-    (EXCEPT_TOKEN,1012, "Except a token"),
-    (STR_NOT_ENCODED,1013, "String not encoded"),
-    (ILLEGAL_TOKEN,1014, "Illegal token"),
-    (INVALID_REAL_NUMBER,1015, "Invalid real number"),
-    (PARSE_UNSIGNED_VALUE_ERR,1016, "Parse unsigned value error")
+    (EXCEPT_TOKEN,1011, "Except a token"),
+    (STR_NOT_ENCODED,1012, "String not encoded"),
+    (ILLEGAL_TOKEN,1013, "Illegal token"),
+    (INVALID_REAL_NUMBER,1014, "Invalid real number"),
+    (PARSE_UNSIGNED_VALUE_ERR,1015, "Parse unsigned value error"),
+    (SEEK_EXEED_MAX_SIZE,1016, "Seek exceed max size"),
 );
 
 #[derive(Debug)]

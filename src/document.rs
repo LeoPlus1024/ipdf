@@ -1,35 +1,49 @@
-use crate::bytes::{line_ending, literal_to_u64};
-use crate::constants::TRAILER;
-use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY, INVALID_PDF_FILE, TRAILER_EXCEPT_A_DICT};
+use crate::constants::pdf_key::{START_XREF, TRAILER, XREF};
+use crate::error::error_kind::INVALID_PDF_FILE;
 use crate::error::Result;
-use crate::objects::{Entry, PDFObject, Xref};
+use crate::objects::{PDFObject, PDFXref};
 use crate::parser::parse;
-use crate::sequence::Sequence;
+use crate::sequence::{FileSequence, Sequence};
+use crate::tokenizer::Tokenizer;
 use crate::vpdf::PDFVersion;
+use std::path::PathBuf;
+use log::debug;
+use crate::bytes::{count_leading_line_endings, line_ending, literal_to_u64};
 
 /// Represent a PDF document
 pub struct PDFDocument {
     /// Cross-reference table
-    xrefs: Vec<Xref>,
+    xrefs: Vec<PDFXref>,
     /// PDF version
     version: PDFVersion,
-    /// PDF stream sequence
-    sequence: Box<dyn Sequence>
+    // Tokenizer
+    tokenizer: Tokenizer
 }
 
 impl PDFDocument {
+
+    /// Open a pdf document
+    pub fn open(path: PathBuf) -> Result<PDFDocument> {
+        let file = std::fs::File::open(path)?;
+        let sequence = FileSequence::new(file);
+        Self::new(sequence)
+    }
+
+    /// Create a pdf document from sequence
     pub fn new(mut sequence: impl Sequence + 'static) -> Result<PDFDocument> {
         let version = parse_version(&mut sequence)?;
-        let offset = find_xref_table_offset(&mut sequence)?;
-        let xrefs = parse_xref(offset, &mut sequence)?;
+        let offset = cal_xref_table_offset(&mut sequence)?;
+        let mut tokenizer = Tokenizer::new(sequence);
+        tokenizer.seek(offset)?;
+        let xrefs = parse_xref(&mut tokenizer)?;
         let pdf = PDFDocument {
             xrefs,
             version,
-            sequence: Box::new(sequence),
+            tokenizer,
         };
         Ok(pdf)
     }
-    pub fn get_xref(&self) -> &Vec<Xref> {
+    pub fn get_xref(&self) -> &Vec<PDFXref> {
         &self.xrefs
     }
     pub fn get_version(&self) -> &PDFVersion {
@@ -56,61 +70,52 @@ fn parse_version(sequence: &mut impl Sequence) -> Result<PDFVersion> {
     Ok(version.try_into()?)
 }
 
-fn parse_xref(offset: u64, sequence: &mut impl Sequence) -> Result<Vec<Xref>> {
-    sequence.seek(offset)?;
-    // Skip xref
-    sequence.read_line()?;
-    let xref_meta = sequence.read_line_str()?;
-    let values = xref_meta.split_whitespace().collect::<Vec<&str>>();
-    let obj_num = values[0].parse::<u64>()?;
-    let length = values[1].parse::<u64>()?;
-    let mut entries = Vec::<Entry>::with_capacity(length as usize);
-    for i in 0..length {
-        let line = sequence.read_line()?;
-        if line.len() != 18 {
-            return Err(INVALID_CROSS_TABLE_ENTRY.into());
+fn parse_xref(mut tokenizer: &mut Tokenizer) -> Result<Vec<PDFXref>> {
+    if let Some(PDFObject::Xref(xref)) = parse(&mut tokenizer, |token| token.key_was(XREF))? {
+        if let Some(PDFObject::Dict(dict)) = parse(&mut tokenizer, |token| token.key_was(TRAILER))? {
+            return Ok(vec![xref])
         }
-        let entry:Entry = String::from_utf8(line)?.try_into()?;
-        entries.push(entry)
     }
-    let xref = Xref {
-        obj_num,
-        length,
-        entries,
-    };
-    let xrefs = vec![xref];
-    let next_text = sequence.read_line_str()?;
-    if next_text == TRAILER {
-        let trailer = match parse(sequence)? {
-            PDFObject::Dict(dict) => dict,
-            _ =>return Err(TRAILER_EXCEPT_A_DICT.into())
-        };
-    }
-    Ok(xrefs)
+    Ok(vec![])
 }
 
-fn find_xref_table_offset(sequence: &mut impl Sequence) -> crate::error::Result<u64> {
+fn cal_xref_table_offset(sequence: &mut impl Sequence) -> Result<u64> {
     let size = sequence.size()?;
     let pos = if size > 1024 { size - 1024 } else { 0 };
     let mut buf = [0u8; 1024];
     sequence.seek(pos)?;
     let n = sequence.read(&mut buf)?;
-    let mut list = Vec::<u8>::new();
-    let mut index = 0;
+    let chars = START_XREF.as_bytes();
+    let mut tx = chars.len();
+    let mut index = n;
     for i in (0..n).rev() {
         let b = buf[i];
-        if b == b't' {
-            break;
-        }
-        if b == b'%' {
-            index = i;
-        } else {
-            if index != 0 && !line_ending(b) {
-                list.push(b);
+        if chars[tx - 1] == b {
+            tx -= 1;
+            if tx == 0 {
+                index = i;
+                break
             }
         }
     }
-    list.reverse();
-    let byte_offset = literal_to_u64(&list);
-    Ok(byte_offset)
+    // Can't find start xref
+    if index == n {
+        return Err(INVALID_PDF_FILE.into())
+    }
+    index = index + chars.len();
+    let crlf_num = count_leading_line_endings(&buf[index..n]);
+    let start = index + (crlf_num as usize);
+    let mut end = 0usize;
+    for i in start..n {
+        if line_ending(buf[i]) {
+            end = i;
+            break;
+        }
+    }
+    if end == 0 || start == end {
+        debug!("Start-Xref offset not normal end");
+        return Err(INVALID_PDF_FILE.into())
+    }
+    let offset = literal_to_u64(&buf[start..end]);
+    Ok(offset)
 }

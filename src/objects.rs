@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use crate::error::Error;
-use crate::error::error_kind::{INVALID_CROSS_TABLE_ENTRY};
+
 
 pub enum PDFObject{
     Bool(PDFBool),
@@ -13,6 +12,7 @@ pub enum PDFObject{
     DirectObject(PDFDirectObject),
     IndirectObject(PDFIndirectObject),
     Stream(PDFStream),
+    Xref(PDFXref),
 }
 
 pub struct PDFBool {
@@ -66,11 +66,11 @@ pub(crate) enum EntryState {
 
 
 pub struct Entry {
-    state: EntryState,
+    pub(crate) state: EntryState,
     /// The maximum generation number is 65535. Once that number is reached, that entry in the crossreference table will not be reused.
-    gen_num: u16,
+    pub(crate) gen_num: u64,
 }
-pub struct Xref {
+pub struct PDFXref {
     pub(crate) obj_num: u64,
     pub(crate) length: u64,
     pub(crate) entries: Vec<Entry>,
@@ -79,26 +79,4 @@ pub struct Xref {
 pub struct Trailer {
     pub(crate) metadata: PDFDict,
     pub(crate) byte_offset: u64,
-}
-
-impl TryFrom<String> for Entry {
-    type Error = Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let values = value.split_whitespace().collect::<Vec<&str>>();
-        if values.len() != 3 {
-            return Err(INVALID_CROSS_TABLE_ENTRY.into())
-        }
-        let value = values[0].parse::<u64>()?;
-        let state = match values[2] {
-            "n" => EntryState::Using(value),
-            "f" => EntryState::Deleted(value),
-            _ => return Err(INVALID_CROSS_TABLE_ENTRY.into())
-        };
-        let gen_num = values[1].parse::<u16>()?;
-        Ok(Entry {
-            state,
-            gen_num,
-        })
-    }
 }

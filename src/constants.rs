@@ -1,4 +1,32 @@
-pub(crate) const TRAILER: &str = "trailer";
+macro_rules! pdf_key {
+    ($(($ident:ident,$value:literal)),+$(,)?) => {
+        pub(crate) mod pdf_key {
+            $(
+                pub(crate) const $ident: &str = $value;
+            )+
+        }
+        pub(crate) fn is_key(str:&str)->bool{
+            match str {
+                $(
+                    $value => true,
+                )+
+                _ => false
+            }
+        }
+    }
+}
+
+pdf_key!(
+    (TRAILER,"trailer"),
+    (XREF,"xref"),
+    (R,"R"),
+    (OBJ,"obj"),
+    (START_XREF,"startxref"),
+    (TURE,"true"),
+    (FALSE,"false")
+);
+
+
 pub(crate) const LEFT_BRACKET: char = '<';
 pub(crate) const RIGHT_BRACKET: char = '>';
 pub(crate) const LEFT_PARENTHESIS: char = '(';
@@ -8,9 +36,6 @@ pub(crate) const SUB: char = '-';
 pub(crate) const ADD: char = '+';
 pub(crate) const DOUBLE_LEFT_BRACKET: &str = "<<";
 pub(crate) const DOUBLE_RIGHT_BRACKET: &str = ">>";
-
-pub(crate) const R: &str = "R";
-pub(crate) const OBJ: &str = "obj";
 
 pub(crate) const CR: char = '\r';
 pub(crate) const LF: char = '\n';

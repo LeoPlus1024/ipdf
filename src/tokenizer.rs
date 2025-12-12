@@ -1,24 +1,24 @@
 use std::ops::Range;
 use log::debug;
-use crate::constants::{ADD, DOT, DOUBLE_LEFT_BRACKET, DOUBLE_RIGHT_BRACKET, END_CHARS, LEFT_BRACKET, LEFT_PARENTHESIS, LEFT_SQUARE_BRACKET, RIGHT_BRACKET, RIGHT_PARENTHESIS, RIGHT_SQUARE_BRACKET, SPLASH, SUB};
+use crate::constants::{is_key, ADD, DOT, DOUBLE_LEFT_BRACKET, DOUBLE_RIGHT_BRACKET, END_CHARS, LEFT_BRACKET, LEFT_PARENTHESIS, LEFT_SQUARE_BRACKET, RIGHT_BRACKET, RIGHT_PARENTHESIS, RIGHT_SQUARE_BRACKET, SPLASH, SUB};
 use crate::error::Error;
 use crate::error::error_kind::{EOF, EXCEPT_TOKEN, INVALID_NUMBER, INVALID_REAL_NUMBER, PARSE_UNSIGNED_VALUE_ERR};
 use crate::objects::PDFNumber;
 use crate::sequence::Sequence;
 use crate::error::Result;
-use crate::tokenizer::Token::{Delimiter, Eof, Id, Number};
+use crate::tokenizer::Token::{Bool, Delimiter, Eof, Id, Key, Number};
 
-pub(crate) struct Tokenizer<'a> {
+pub(crate) struct Tokenizer {
     pub(crate) buf: Vec<u8>,
     pub(crate) token_buf: Vec<Token>,
-    pub(crate) sequence: Box<&'a mut dyn Sequence>,
+    pub(crate) sequence: Box<dyn Sequence>,
 }
 
 #[derive(PartialEq,Clone)]
 pub(crate) enum Token {
     Id(String),
     Bool(bool),
-    Keyword(String),
+    Key(String),
     Number(PDFNumber),
     Delimiter(String),
     Eof
@@ -32,7 +32,7 @@ impl Token {
         false
     }
 
-    pub(crate) fn is_unsigned(&self) -> bool {
+    pub(crate) fn is_u64(&self) -> bool {
         if let Number(PDFNumber::Unsigned(_)) = self {
             true
         } else {
@@ -48,14 +48,20 @@ impl Token {
         }
     }
 
-    pub(crate) fn id_is(&self, str: &str) -> bool {
-        if let Id(id) = self {
-            return id == str;
+    pub(crate) fn to_string(&self) -> String {
+        match self {
+            Id(id) => id.clone(),
+            Key(key) => key.clone(),
+            Delimiter(delimiter) => delimiter.clone(),
+            Number(PDFNumber::Unsigned(num)) => num.to_string(),
+            Number(PDFNumber::Signed(num)) => num.to_string(),
+            Number(PDFNumber::Real(num)) => num.to_string(),
+            Bool(bool) => bool.to_string(),
+            Eof => "_eof".to_string()
         }
-        false
     }
 
-    pub(crate) fn unsigned_num(&self) -> Result<u64> {
+    pub(crate) fn as_u64(&self) -> Result<u64> {
         if let Number(PDFNumber::Unsigned(num)) = self {
             return Ok(*num)
         }
@@ -75,10 +81,17 @@ impl Token {
         }
         Ok(self)
     }
+
+    pub(crate) fn key_was(&self, str: &str) -> bool {
+        if let Key(key) = self {
+            return key == str;
+        }
+        false
+    }
 }
 
-impl<'a> Tokenizer<'a> {
-    pub(crate) fn new(sequence: &'a mut impl Sequence) -> Self {
+impl Tokenizer {
+    pub(crate) fn new(sequence: impl Sequence + 'static) -> Self {
         Self {
             sequence: Box::new(sequence),
             buf: Vec::new(),
@@ -137,8 +150,11 @@ impl<'a> Tokenizer<'a> {
                     let range = self.loop_util(&END_CHARS, |_c| Ok(false))?;
                     let mut buf = self.buf.drain(range).collect::<Vec<u8>>();
                     buf.insert(0, chr as u8);
-                    let id = String::from_utf8(buf)?;
-                    Id(id)
+                    let text = String::from_utf8(buf)?;
+                    if is_key(text.as_str()) {
+                        return Ok(Key(text));
+                    }
+                    Id(text)
                 }
             }
         };
@@ -187,11 +203,14 @@ impl<'a> Tokenizer<'a> {
         let mut index = 0usize;
         let buf = &mut self.buf;
         'ext: loop {
-            if buf.is_empty() {
-                let n = self.sequence.read(buf)?;
+            // If index is equal to buffer length, then we need to read more data
+            if index == buf.len() {
+                let mut bytes = [0u8; 1024];
+                let n = self.sequence.read(&mut bytes)?;
                 if n == 0 {
                     return Err(EOF.into());
                 }
+                buf.extend_from_slice(&bytes[0..n]);
             }
             let len = buf.len();
             for i in index..len {
@@ -201,6 +220,7 @@ impl<'a> Tokenizer<'a> {
                     break 'ext;
                 }
             }
+            index = len;
         }
         Ok(0..index)
     }
@@ -246,9 +266,10 @@ impl<'a> Tokenizer<'a> {
         }
         if skip_cunt > 0 {
             buf.drain(0..skip_cunt);
-            if skip_cunt == buf.len() {
-                return Ok(None);
-            }
+        }
+        // If buffer is empty, then we need to read more data
+        if buf.is_empty() {
+            return self.next_chr0(func);
         }
         let b = buf[0];
         let chr = char::from(b);
@@ -257,5 +278,12 @@ impl<'a> Tokenizer<'a> {
             buf.remove(0);
         }
         Ok(Some((equal, chr)))
+    }
+
+    pub(crate) fn seek(&mut self, offset: u64) -> Result<u64> {
+        let n = self.sequence.seek(offset)?;
+        self.token_buf.clear();
+        self.buf.clear();
+        Ok(n)
     }
 }
