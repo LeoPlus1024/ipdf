@@ -1,7 +1,7 @@
 # pdf-rs
 
 [![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/your-username/pdf-rs/actions)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.txt)
 
 [//]: # ([![Crates.io]&#40;https://img.shields.io/crates/v/pdf-rs.svg&#41;]&#40;https://crates.io/crates/pdf-rs&#41;)
 
@@ -115,7 +115,7 @@ cargo test
 6. 
 ### 许可证
 
-该项目采用 Apache License 2.0 许可证 - 详情请见 [LICENSE](LICENSE) 文件。
+该项目采用 Apache License 2.0 许可证 - 详情请见 [LICENSE](LICENSE.txt) 文件。
 
 ### 致谢
 

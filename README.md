@@ -1,7 +1,7 @@
 # pdf-rs
 
 [![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/your-username/pdf-rs/actions)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.txt)
 
 [//]: # ([![Crates.io]&#40;https://img.shields.io/crates/v/pdf-rs.svg&#41;]&#40;https://crates.io/crates/pdf-rs&#41;)
 
@@ -120,7 +120,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ### License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE.txt) file for details.
 
 ### Acknowledgments
 
