@@ -3,7 +3,6 @@ use log::debug;
 use crate::constants::{ADD, DOT, DOUBLE_LEFT_BRACKET, DOUBLE_RIGHT_BRACKET, END_CHARS, LEFT_BRACKET, LEFT_PARENTHESIS, LEFT_SQUARE_BRACKET, RIGHT_BRACKET, RIGHT_PARENTHESIS, RIGHT_SQUARE_BRACKET, SPLASH, SUB};
 use crate::error::Error;
 use crate::error::error_kind::{EOF, EXCEPT_TOKEN, INVALID_NUMBER, INVALID_REAL_NUMBER, PARSE_UNSIGNED_VALUE_ERR};
-use crate::objects::Int::{Signed, Unsigned};
 use crate::objects::PDFNumber;
 use crate::sequence::Sequence;
 use crate::error::Result;
@@ -34,7 +33,7 @@ impl Token {
     }
 
     pub(crate) fn is_unsigned(&self) -> bool {
-        if let Number(PDFNumber::Int(Unsigned(_))) = self {
+        if let Number(PDFNumber::Unsigned(_)) = self {
             true
         } else {
             false
@@ -57,7 +56,7 @@ impl Token {
     }
 
     pub(crate) fn unsigned_num(&self) -> Result<u64> {
-        if let Number(PDFNumber::Int(Unsigned(num))) = self {
+        if let Number(PDFNumber::Unsigned(num)) = self {
             return Ok(*num)
         }
         Err(PARSE_UNSIGNED_VALUE_ERR.into())
@@ -172,12 +171,11 @@ impl<'a> Tokenizer<'a> {
             PDFNumber::Real(text.parse::<f64>()?)
         } else {
             let signed = chr == SUB;
-            let value = if signed {
-                Signed(text.parse::<i64>()?)
+            if signed {
+                PDFNumber::Signed(text.parse::<i64>()?)
             } else {
-                Unsigned(text.parse::<u64>()?)
-            };
-            PDFNumber::Int(value)
+                PDFNumber::Unsigned(text.parse::<u64>()?)
+            }
         };
         Ok(Number(value))
     }

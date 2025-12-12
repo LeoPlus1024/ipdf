@@ -25,14 +25,9 @@ pub struct PDFNamed {
 }
 
 #[derive(PartialEq,Clone)]
-pub enum Int {
+pub enum PDFNumber {
     Signed(i64),
     Unsigned(u64),
-}
-
-#[derive(PartialEq,Clone)]
-pub enum PDFNumber {
-    Int(Int),
     Real(f64),
 }
 

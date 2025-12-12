@@ -1,7 +1,6 @@
 use crate::constants::*;
 use crate::error::error_kind::{EXCEPT_TOKEN, STR_NOT_ENCODED, UNKNOWN_TOKEN};
 use crate::error::{Error, Result};
-use crate::objects::Int::Unsigned;
 use crate::objects::{PDFArray, PDFDict, PDFDirectObject, PDFIndirectObject, PDFNamed, PDFNumber, PDFObject, PDFString};
 use crate::sequence::Sequence;
 use std::collections::HashMap;
@@ -25,7 +24,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             &_ => todo!(),
         },
         Number(number) => match number {
-            PDFNumber::Int(Unsigned(value)) => {
+            PDFNumber::Unsigned(value) => {
                 let is_num = tokenizer.check_next_token(|token| Ok(token.is_unsigned()))?;
                 if !is_num {
                     return Ok(PDFObject::Number(number));

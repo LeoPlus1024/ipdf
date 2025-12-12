@@ -1,16 +1,11 @@
 [package]
-name = "ipdf"
+name = "pdf-rs"
 version = "0.1.0"
 edition = "2024"
 
-
-[lib]
-name = "ipdf"
-
-
 [[test]]
-name = "ipdf_test"
-path = "tests"
+name = "structure"
+path = "tests/structure.rs"
 
 [dependencies]
 log = "0.4.29"

@@ -1,7 +1,6 @@
-use ipdf::document::PDFDocument;
-use ipdf::error::Result;
-use ipdf::sequence::{FileSequence};
-use ipdf::vpdf::PDFVersion;
+use pdf_rs::error::Result;
+use pdf_rs::vpdf::PDFVersion;
+mod common;
 
 #[test]
 fn vpdf_test() -> Result<()> {
@@ -14,13 +13,5 @@ fn vpdf_test() -> Result<()> {
     assert_eq!(PDFVersion::V1_6, "1.6".try_into()?);
     assert_eq!(PDFVersion::V1_7, "1.7".try_into()?);
     assert_eq!(PDFVersion::V2_0, "2.0".try_into()?);
-    Ok(())
-}
-
-#[test]
-fn parse_pdf() -> Result<()> {
-    let file = std::fs::File::open("document/pdfreference1.0.pdf")?;
-    let sequence = FileSequence::new(file);
-    let document = PDFDocument::new(sequence)?;
     Ok(())
 }

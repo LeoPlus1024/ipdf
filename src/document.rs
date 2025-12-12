@@ -37,7 +37,7 @@ impl PDFDocument {
     }
 }
 
-fn parse_version(sequence: &mut impl Sequence) -> crate::error::Result<PDFVersion> {
+fn parse_version(sequence: &mut impl Sequence) -> Result<PDFVersion> {
     let mut buf = [0u8; 1024];
     let n = sequence.read(&mut buf)?;
     if n < 8 {
@@ -98,13 +98,11 @@ fn find_xref_table_offset(sequence: &mut impl Sequence) -> crate::error::Result<
     let mut list = Vec::<u8>::new();
     let mut index = 0;
     for i in (0..n).rev() {
-        // 't'
         let b = buf[i];
-        if b == 102 {
+        if b == b't' {
             break;
         }
-        // '%'
-        if b == 37 {
+        if b == b'%' {
             index = i;
         } else {
             if index != 0 && !line_ending(b) {
