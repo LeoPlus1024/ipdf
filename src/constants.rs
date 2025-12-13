@@ -24,7 +24,8 @@ pdf_key!(
     (START_XREF,"startxref"),
     (TURE,"true"),
     (FALSE,"false"),
-    (NULL,"null")
+    (NULL,"null"),
+    (END_OBJ,"endobj")
 );
 
 

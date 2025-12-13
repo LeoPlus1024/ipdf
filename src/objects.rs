@@ -1,5 +1,22 @@
 use std::collections::HashMap;
 
+#[derive(PartialEq,Clone)]
+pub enum PDFNumber {
+    Signed(i64),
+    Unsigned(u64),
+    Real(f64),
+}
+
+pub struct XEntry {
+    /// The value of the entry.
+    pub(crate) value:u64,
+    /// The entry is either in use or deleted.
+    pub(crate) using:bool,
+    /// The object number of the entry.
+    pub(crate) obj_num:u64,
+    /// The generation number of the entry.
+    pub(crate) gen_num: u64,
+}
 
 pub enum PDFObject{
     /// The keywords true and false represent boolean objects with values true and false.
@@ -91,7 +108,7 @@ pub enum PDFObject{
     /// 64
     /// endobj
     /// ```
-    ObjectRef(u64, u64, Box<PDFObject>),
+    ObjectRef(u64, u64),
     /// A direct object is a boolean, number, string, name, array, dictionary, stream, or null,
     /// as described in the previous sections. An indirect object is an object that has been
     /// labeled so that it can be referenced by other objects. Any type of object may be an
@@ -117,32 +134,8 @@ pub enum PDFObject{
     /// modified.</br>
     /// Each indirect object has a unique object number, and indirect objects are often but
     /// not necessarily numbered sequentially in the file, beginning with o
-    IndirectObject(u64, u64),
+    IndirectObject(u64, u64,Vec<PDFObject>),
     Stream,
     /// **Non-standard** pdf object only support current project parse temp storage xref  table
-    Xref(PDFXref),
-}
-
-#[derive(PartialEq,Clone)]
-pub enum PDFNumber {
-    Signed(i64),
-    Unsigned(u64),
-    Real(f64),
-}
-
-pub(crate) enum EntryState {
-    Using(u64),
-    Deleted(u64)
-}
-
-
-pub struct Entry {
-    pub(crate) state: EntryState,
-    /// The maximum generation number is 65535. Once that number is reached, that entry in the crossreference table will not be reused.
-    pub(crate) gen_num: u64,
-}
-pub struct PDFXref {
-    pub(crate) obj_num: u64,
-    pub(crate) length: u64,
-    pub(crate) entries: Vec<Entry>,
+    Xref(Vec<XEntry>),
 }

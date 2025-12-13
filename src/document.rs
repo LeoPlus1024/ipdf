@@ -1,7 +1,7 @@
 use crate::constants::pdf_key::{START_XREF, TRAILER, XREF};
 use crate::error::error_kind::INVALID_PDF_FILE;
 use crate::error::Result;
-use crate::objects::{PDFObject, PDFXref};
+use crate::objects::{PDFObject, XEntry};
 use crate::parser::parse;
 use crate::sequence::{FileSequence, Sequence};
 use crate::tokenizer::Tokenizer;
@@ -13,7 +13,7 @@ use crate::bytes::{count_leading_line_endings, line_ending, literal_to_u64};
 /// Represent a PDF document
 pub struct PDFDocument {
     /// Cross-reference table
-    xrefs: Vec<PDFXref>,
+    xrefs: Vec<XEntry>,
     /// PDF version
     version: PDFVersion,
     // Tokenizer
@@ -43,7 +43,7 @@ impl PDFDocument {
         };
         Ok(document)
     }
-    pub fn get_xref(&self) -> &Vec<PDFXref> {
+    pub fn get_xref(&self) -> &Vec<XEntry> {
         &self.xrefs
     }
     pub fn get_version(&self) -> &PDFVersion {
@@ -70,10 +70,10 @@ fn parse_version(sequence: &mut impl Sequence) -> Result<PDFVersion> {
     Ok(version.try_into()?)
 }
 
-fn parse_xref(mut tokenizer: &mut Tokenizer) -> Result<Vec<PDFXref>> {
-    if let Some(PDFObject::Xref(xref)) = parse(&mut tokenizer, |token| token.key_was(XREF))? {
+fn parse_xref(mut tokenizer: &mut Tokenizer) -> Result<Vec<XEntry>> {
+    if let Some(PDFObject::Xref(entries)) = parse(&mut tokenizer, |token| token.key_was(XREF))? {
         if let Some(PDFObject::Dict(dict)) = parse(&mut tokenizer, |token| token.key_was(TRAILER))? {
-            return Ok(vec![xref])
+            return Ok(entries)
         }
     }
     Ok(vec![])

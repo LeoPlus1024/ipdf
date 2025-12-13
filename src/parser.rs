@@ -1,8 +1,8 @@
-use crate::constants::pdf_key::{OBJ, R};
+use crate::constants::pdf_key::{END_OBJ, OBJ, R};
 use crate::constants::*;
 use crate::error::error_kind::{EOF, EXCEPT_TOKEN, ILLEGAL_TOKEN, STR_NOT_ENCODED};
 use crate::error::{Error, Result};
-use crate::objects::{Entry, EntryState, PDFNumber, PDFObject, PDFXref};
+use crate::objects::{PDFNumber, PDFObject, XEntry};
 use crate::tokenizer::Token::{Delimiter, Id, Key, Number};
 use crate::tokenizer::{Token, Tokenizer};
 use std::collections::HashMap;
@@ -67,28 +67,26 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
 fn parse_xref(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
     let obj_num = tokenizer.next_token()?.as_u64()?;
     let length = tokenizer.next_token()?.as_u64()?;
-    let mut entries = Vec::<Entry>::new();
+    let mut entries = Vec::<XEntry>::new();
     for i in 0..length {
-        let offset = tokenizer.next_token()?.as_u64()?;
+        let value = tokenizer.next_token()?.as_u64()?;
         let gen_num = tokenizer.next_token()?.as_u64()?;
         let state = tokenizer.next_token()?.to_string();
-        let state = match state.as_str() {
-            "n" => EntryState::Using(offset),
-            "f" => EntryState::Deleted(offset),
+        let using = match state.as_str() {
+            "n" => true,
+            "f" => false,
             _ => return Err(Error::new(EXCEPT_TOKEN, format!("Except a token with 'f' or 'n' but it is '{}'", state)))
         };
-        let entry = Entry {
-            state,
+        let obj_num = obj_num + i;
+        let entry = XEntry {
+            value,
+            using,
+            obj_num,
             gen_num,
         };
         entries.push(entry);
     }
-    let xref = PDFXref {
-        obj_num,
-        length,
-        entries,
-    };
-    Ok(PDFObject::Xref(xref))
+    Ok(PDFObject::Xref(entries))
 }
 
 fn parse_obj(tokenizer: &mut Tokenizer, option: Option<u64>) -> Result<PDFObject> {
@@ -102,11 +100,19 @@ fn parse_obj(tokenizer: &mut Tokenizer, option: Option<u64>) -> Result<PDFObject
     if let Key(ref key) = type_token {
         let object = match key.as_str() {
             OBJ => {
-                let metadata = parse_dict(tokenizer)?;
-                PDFObject::ObjectRef(obj_num,gen_num,Box::new(metadata))
+                let mut objects = Vec::<PDFObject>::new();
+                // Parse indirect object contain all object
+                loop {
+                    let token = tokenizer.next_token()?;
+                    if token.key_was(END_OBJ) {
+                        return Ok(PDFObject::IndirectObject(obj_num, gen_num, objects));
+                    }
+                    let object = parser0(tokenizer, token)?;
+                    objects.push(object);
+                }
             },
             _ => {
-                PDFObject::IndirectObject(obj_num,gen_num)
+                PDFObject::ObjectRef(obj_num,gen_num)
             }
         };
         return Ok(object)
