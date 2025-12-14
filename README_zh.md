@@ -2,8 +2,7 @@
 
 [![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/your-username/pdf-rs/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.txt)
-
-[//]: # ([![Crates.io]&#40;https://img.shields.io/crates/v/pdf-rs.svg&#41;]&#40;https://crates.io/crates/pdf-rs&#41;)
+[![Crates.io](https://img.shields.io/crates/v/pdf-rs.svg)](https://crates.io/crates/pdf-rs)
 
 [中文](#chinese) | [English](README.md)
 
