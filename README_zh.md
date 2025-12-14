@@ -1,5 +1,7 @@
 # pdf-rs
 
+> ⚠️ **警告**: 该项目目前正处于积极开发中。API 可能会频繁变更，尚未稳定。
+
 [![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/your-username/pdf-rs/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Crates.io](https://img.shields.io/crates/v/pdf-rs.svg)](https://crates.io/crates/pdf-rs)
