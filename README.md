@@ -2,7 +2,7 @@
 
 > ⚠️ **Warning**: This project is currently under active development. APIs may change frequently and are not yet stable.
 
-[![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/your-username/pdf-rs/actions)
+[![Build Status](https://github.com/LeoPlus1024/pdf-rs/workflows/Rust/badge.svg)](https://github.com/LeoPlus1024/pdf-rs/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Crates.io](https://img.shields.io/crates/v/pdf-rs.svg)](https://crates.io/crates/pdf-rs)
 
