@@ -1,4 +1,4 @@
-use crate::constants::{ADD, DOT, DOUBLE_LEFT_BRACKET, DOUBLE_RIGHT_BRACKET, END_CHARS, LEFT_BRACKET, LEFT_PARENTHESIS, LEFT_SQUARE_BRACKET, RIGHT_BRACKET, RIGHT_PARENTHESIS, RIGHT_SQUARE_BRACKET, SPLASH, SUB, is_key, CR, LF};
+use crate::constants::{is_key};
 use crate::error::Error;
 use crate::error::Result;
 use crate::error::error_kind::{
@@ -10,6 +10,21 @@ use crate::tokenizer::Token::{Bool, Delimiter, Eof, Id, Key, Number};
 use log::debug;
 use std::ops::Range;
 use crate::bytes::{hexdump, line_ending};
+
+/// Common end characters
+const COMMON_END_CHARS: [char; 11] = [
+    '<',
+    '>',
+    '(',
+    ')',
+    '\r',
+    '\n',
+    '\\',
+    ' ',
+    '/',
+    '[',
+    ']',
+];
 
 pub(crate) struct Tokenizer {
     buf: Vec<u8>,
@@ -145,17 +160,16 @@ impl Tokenizer {
 
     fn chr2token(&mut self, chr: char) -> Result<Token> {
         let token = match chr {
-            LEFT_BRACKET => match self.next_chr_was(LEFT_BRACKET) {
-                true => Delimiter(DOUBLE_LEFT_BRACKET.into()),
-                false => Delimiter(LEFT_BRACKET.into()),
+            '<' => match self.next_chr_was('<') {
+                true => Delimiter(String::from("<<")),
+                false => Delimiter(String::from('<')),
             },
-            RIGHT_BRACKET => match self.next_chr_was(RIGHT_BRACKET) {
-                true => Delimiter(DOUBLE_RIGHT_BRACKET.into()),
-                false => Delimiter(RIGHT_BRACKET.into()),
+            '>' => match self.next_chr_was('>') {
+                true => Delimiter(String::from(">>")),
+                false => Delimiter(String::from(">")),
             },
-            SPLASH | LEFT_PARENTHESIS | RIGHT_PARENTHESIS | LEFT_SQUARE_BRACKET
-            | RIGHT_SQUARE_BRACKET => Delimiter(chr.into()),
-            ADD | SUB | DOT => self.num_deco(chr)?,
+            '/' | '(' | ')' | '[' | ']' => Delimiter(chr.into()),
+            '+' | '-' | '.' => self.num_deco(chr)?,
             chr => {
                 // If the character is a digit, then we need to read the number
                 if chr.is_digit(10) {
@@ -163,7 +177,7 @@ impl Tokenizer {
                 }
                 // Identifier
                 else {
-                    let range = self.loop_util(&END_CHARS, |_c| Ok(false))?;
+                    let range = self.loop_util(&COMMON_END_CHARS, |_c| Ok(false))?;
                     let mut buf = self.buf.drain(range).collect::<Vec<u8>>();
                     buf.insert(0, chr as u8);
                     let text = String::from_utf8(buf)?;
@@ -178,9 +192,9 @@ impl Tokenizer {
     }
 
     fn num_deco(&mut self, chr: char) -> Result<Token> {
-        let mut is_real = chr == DOT;
-        let range = self.loop_util(&END_CHARS, |c| {
-            let is_dot = c == DOT;
+        let mut is_real = chr == '.';
+        let range = self.loop_util(&COMMON_END_CHARS, |c| {
+            let is_dot = c == '.';
             // If the character is a dot, then we need to check if it is a valid real number
             if is_dot {
                 if is_real {
@@ -202,7 +216,7 @@ impl Tokenizer {
         let value = if is_real {
             PDFNumber::Real(text.parse::<f64>()?)
         } else {
-            let signed = chr == SUB;
+            let signed = chr == '-';
             if signed {
                 PDFNumber::Signed(text.parse::<i64>()?)
             } else {
@@ -274,7 +288,7 @@ impl Tokenizer {
         let mut skip_cunt = 0;
         for i in 0..len {
             let b = buf[i];
-            if b == b'\r' || b == b'\n' || b == b' ' {
+            if line_ending(b) || b == b' ' {
                 skip_cunt += 1;
             } else {
                 break;
@@ -339,7 +353,7 @@ impl Tokenizer {
     ///
     /// Return the number of bytes skipped
     pub(crate) fn skip_crlf(&mut self) -> Result<usize> {
-        let range = self.loop_util(&[], |chr| Ok(chr != CR && chr != LF))?;
+        let range = self.loop_util(&[], |chr| Ok(chr != '\r' && chr != '\n'))?;
         let mut count = 0usize;
         if range.start < range.end {
             count = range.end - range.start;

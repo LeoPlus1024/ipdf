@@ -67,7 +67,7 @@ pub(crate) fn count_leading_line_endings(bytes: &[u8]) -> u64 {
 
 #[inline]
 pub(crate) fn line_ending(b: u8) -> bool {
-    b == 10 || b == 13
+    b == b'\r' || b == b'\n'
 }
 
 

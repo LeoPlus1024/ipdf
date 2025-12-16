@@ -112,13 +112,13 @@ fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<Dictionary> {
     loop {
         let token = tokenizer.next_token()?;
         if let Delimiter(ref delimiter) = token {
-            if delimiter == DOUBLE_RIGHT_BRACKET {
+            if delimiter == ">>" {
                 break;
             }
         }
         let object = parser0(&mut tokenizer, token)?;
         if let PDFObject::Named(named) = object {
-            let empty_or_end = tokenizer.check_next_token(|token| token.delimiter_was(DOUBLE_RIGHT_BRACKET) || token.delimiter_was("/"))?;
+            let empty_or_end = tokenizer.check_next_token(|token| token.delimiter_was(">>") || token.delimiter_was("/"))?;
             if empty_or_end {
                 entries.insert(named, None);
                 continue;
@@ -160,10 +160,10 @@ fn parse_array(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
 }
 
 fn parse_string(tokenizer: &mut Tokenizer, post_script: bool) -> Result<PDFObject> {
-    let end_chr = if post_script { RIGHT_PARENTHESIS } else { RIGHT_BRACKET };
+    let end_chr = if post_script { ')' } else { '>' };
     let mut is_escape = true;
     let result = tokenizer.loop_util(&[], |chr| {
-        is_escape = (chr == ESCAPE) && !is_escape;
+        is_escape = (chr == '\\') && !is_escape;
         Ok(is_escape || chr == end_chr)
     });
     match result {
