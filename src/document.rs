@@ -1,15 +1,18 @@
 use crate::bytes::{count_leading_line_endings, line_ending, literal_to_u64};
 use crate::constants::pdf_key::{START_XREF, TRAILER, XREF};
-use crate::error::Result;
-use crate::error::error_kind::{INVALID_PDF_FILE, NO_XREF_TABLE_FOUND};
-use crate::objects::{PDFNumber, PDFObject, XEntry};
+use crate::constants::{PREV, ROOT};
+use crate::error::error_kind::{
+    CANT_FIND_ROOT, EXCEPT_TRAILER, INVALID_PDF_FILE, NO_XREF_TABLE_FOUND,
+};
+use crate::error::{Error, Result};
+use crate::objects::{Dictionary, PDFNumber, PDFObject, XEntry};
+use crate::page::PageTree;
 use crate::parser::{parse, parse_text_xref};
 use crate::sequence::{FileSequence, Sequence};
 use crate::tokenizer::Tokenizer;
 use crate::vpdf::PDFVersion;
 use log::debug;
 use std::path::PathBuf;
-use crate::constants::PREV;
 
 /// Represent a PDF document
 pub struct PDFDocument {
@@ -17,13 +20,15 @@ pub struct PDFDocument {
     xrefs: Vec<XEntry>,
     /// PDF version
     version: PDFVersion,
-    // Tokenizer
+    /// Tokenizer
     tokenizer: Tokenizer,
+    /// Root
+    root: (u64, u64),
 }
 
 impl PDFDocument {
     /// Open a pdf document
-    pub  fn open(path: PathBuf) -> Result<PDFDocument> {
+    pub fn open(path: PathBuf) -> Result<PDFDocument> {
         let file = std::fs::File::open(path)?;
         let sequence = FileSequence::new(file);
         Self::new(sequence)
@@ -35,14 +40,15 @@ impl PDFDocument {
         let offset = cal_xref_table_offset(&mut sequence)?;
         let mut tokenizer = Tokenizer::new(sequence);
         tokenizer.seek(offset)?;
-        let mut xrefs = Vec::<XEntry>::new();
         // Merge all xref table
-        merge_xref_table(&mut tokenizer,&mut xrefs)?;
-        let document = PDFDocument {
+        let (xrefs, root) = merge_xref_table(&mut tokenizer)?;
+        let mut document = PDFDocument {
             xrefs,
             version,
             tokenizer,
+            root,
         };
+        document.create_page_tree();
         Ok(document)
     }
     /// Get xref slice
@@ -61,7 +67,7 @@ impl PDFDocument {
         &self.version
     }
     /// Read object from PDFDocument
-    pub fn read_object(&mut self,index: usize) -> Result<Option<PDFObject>> {
+    pub fn read_object(&mut self, index: usize) -> Result<Option<PDFObject>> {
         if index >= self.xrefs.len() {
             return Ok(None);
         }
@@ -72,6 +78,11 @@ impl PDFDocument {
         self.tokenizer.seek(entry.get_value())?;
         let object = parse(&mut self.tokenizer)?;
         Ok(Some(object))
+    }
+
+    /// Create page tree
+    fn create_page_tree(&mut self) {
+
     }
 }
 
@@ -94,37 +105,39 @@ fn parse_version(sequence: &mut impl Sequence) -> Result<PDFVersion> {
     Ok(version.try_into()?)
 }
 
-fn merge_xref_table(mut tokenizer: &mut Tokenizer,mut xrefs: &mut Vec<XEntry>) -> Result<()> {
-    let is_xref = tokenizer.check_next_token0(false, |token| token.key_was(XREF))?;
-    if !is_xref {
-        return Err(NO_XREF_TABLE_FOUND.into());
-    }
-    let entries = parse_text_xref(tokenizer)?;
-    if xrefs.is_empty() {
-        xrefs.extend_from_slice(&entries);
-    } else {
-        for entry in entries {
-            if let None = xrefs.iter().find(|it| it.obj_num == entry.obj_num) {
-                xrefs.push(entry);
-            }
+fn merge_xref_table(mut tokenizer: &mut Tokenizer) -> Result<(Vec<XEntry>, (u64, u64))> {
+    let mut xrefs = Vec::<XEntry>::new();
+    let mut root = None;
+    loop {
+        let is_xref = tokenizer.check_next_token0(false, |token| token.key_was(XREF))?;
+        if !is_xref {
+            return Err(NO_XREF_TABLE_FOUND.into());
         }
-    }
-    let is_trailer = tokenizer.check_next_token0(false, |token| token.key_was(TRAILER))?;
-    if is_trailer {
-        match parse(&mut tokenizer)?.as_dict() {
-            Some(dict) => {
-                match dict.get(PREV) {
-                    Some(PDFObject::Number(PDFNumber::Unsigned(offset)))=>{
-                        tokenizer.seek(*offset)?;
-                        merge_xref_table(tokenizer,xrefs)?;
-                    }
-                    _ => {}
+        let entries = parse_text_xref(tokenizer)?;
+        if xrefs.is_empty() {
+            xrefs.extend_from_slice(&entries);
+        } else {
+            for entry in entries {
+                if let None = xrefs.iter().find(|it| it.obj_num == entry.obj_num) {
+                    xrefs.push(entry);
                 }
             }
-            None => {}
         }
+        if let PDFObject::Dict(mut dictionary) = parse(&mut tokenizer)? {
+            if let Some(obj) = dictionary.remove(ROOT) {
+                root = Some(obj);
+            }
+            if let Some(PDFObject::Number(PDFNumber::Unsigned(prev))) = dictionary.get(PREV) {
+                tokenizer.seek(*prev)?;
+                continue;
+            }
+            if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = root {
+                return Ok((xrefs, (obj_num, gen_num)));
+            }
+            return Err(CANT_FIND_ROOT.into());
+        }
+        return Err(EXCEPT_TRAILER.into());
     }
-    Ok(())
 }
 fn cal_xref_table_offset(sequence: &mut impl Sequence) -> Result<u64> {
     let size = sequence.size()?;

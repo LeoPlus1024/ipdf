@@ -35,6 +35,10 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             pdf_key::NULL => Ok(PDFObject::Null),
             pdf_key::TURE => Ok(PDFObject::Bool(true)),
             pdf_key::FALSE => Ok(PDFObject::Bool(false)),
+            pdf_key::TRAILER => {
+                let token = tokenizer.next_token()?;
+                parser0(tokenizer, token)
+            },
             &_ => Err(Error::new(ILLEGAL_TOKEN, format!("Key '{}' not implemented", key))),
         }
         Number(number) => match number {

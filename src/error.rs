@@ -37,6 +37,8 @@ error_kind!(
     (SEEK_EXEED_MAX_SIZE,1016, "Seek exceed max size"),
     (NO_XREF_TABLE_FOUND,1017, "No xref table found"),
     (ILLEGAL_STREAM,1018, "Illegal stream"),
+    (EXCEPT_TRAILER,1019, "Except trailer"),
+    (CANT_FIND_ROOT,1020, "Can't find root"),
 );
 
 #[derive(Debug)]

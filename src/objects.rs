@@ -299,6 +299,15 @@ impl Dictionary {
     pub fn get(&self, key: &str)-> Option<&PDFObject> {
         self.entries.get(key)
     }
+
+    /// Removes the entry with the given key.
+    pub fn remove(&mut self,key:&str)->Option<PDFObject>{
+        self.entries.remove(key)
+    }
+    /// Returns true if the dictionary contains the given key.
+    pub fn contain(&self, key: &str)->bool{
+        self.entries.contains_key(key)
+    }
 }
 
 impl XEntry {
