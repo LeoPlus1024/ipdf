@@ -39,7 +39,7 @@ error_kind!(
     (ILLEGAL_STREAM,1018, "Illegal stream"),
     (EXCEPT_TRAILER,1019, "Except trailer"),
     (CANT_FIND_ROOT,1020, "Can't find root"),
-    (PAGE_NOT_FOUND,1021, "Page not found"),
+    (PAGE_PARSE_ERROR,1021, "Page parse error"),
 );
 
 #[derive(Debug)]
@@ -54,7 +54,8 @@ pub struct Error {
 }
 
 impl Error {
-    pub(crate) fn new(kind: Kind, message: String) -> Self {
+    pub(crate) fn new<T>(kind: Kind, message: T) -> Self where T: Into<String>{
+        let message = message.into();
         Self {
             inner: Inner {
                 code: kind.0,

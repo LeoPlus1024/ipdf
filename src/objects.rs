@@ -235,6 +235,13 @@ impl PDFObject {
             _ => None,
         }
     }
+    /// Returns the dictionary if it is one.
+    pub fn to_dict(self) -> Option<Dictionary> {
+        match self {
+            PDFObject::Dict(d) => Some(d),
+            _ => None,
+        }
+    }
     /// Returns true if the object is an indirect object.
     pub fn is_object_ref(&self) -> bool {
         match self {

@@ -131,7 +131,7 @@ fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<Dictionary> {
             let value = parser0(&mut tokenizer, token)?;
             entries.insert(named, value);
         } else {
-            return Err(Error::new(EXCEPT_TOKEN, "Except a named token.".into()));
+            return Err(Error::new(EXCEPT_TOKEN, "Except a named token."));
         }
     }
     Ok(Dictionary::new(entries))
@@ -197,12 +197,12 @@ pub(crate) fn parse_stream(tokenizer: &mut Tokenizer, metadata: Dictionary) -> R
         let length = *length as usize;
         let buf = tokenizer.read_bytes(length)?;
         if buf.len() != length {
-            return Err(Error::new(ILLEGAL_STREAM, format!("Require Stream length is {} but it is {}", length, buf.len()).into()));
+            return Err(Error::new(ILLEGAL_STREAM, format!("Require Stream length is {} but it is {}", length, buf.len())));
         }
         let stream = Stream::new(metadata, buf);
         // Except next token is `endstream`
         tokenizer.next_token()?.except(|token| token.key_was(END_STREAM))?;
         return Ok(PDFObject::Stream(stream))
     }
-    Err(Error::new(ILLEGAL_STREAM, "Stream length is not found".into()))
+    Err(Error::new(ILLEGAL_STREAM, "Stream length is not found"))
 }

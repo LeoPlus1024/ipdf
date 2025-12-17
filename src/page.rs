@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use crate::constants::{KIDS, PAGES, TYPE};
-use crate::error::error_kind::PAGE_NOT_FOUND;
+use crate::constants::{COUNT, KIDS, PAGES, TYPE};
+use crate::error::error_kind::{PAGE_PARSE_ERROR};
 use crate::error::{Error, Result};
 use crate::objects::{Dictionary, PDFObject, XEntry};
 use crate::parser::parse_with_offset;
@@ -60,7 +60,7 @@ pub(crate) fn create_page_tree_arena(tokenizer: &mut Tokenizer, catalog: (u64, u
             }
         }
     }
-    Err(Error::new(PAGE_NOT_FOUND, format!("Can not find page catalog with {} {}", catalog.0, catalog.1)))
+    Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", catalog.0, catalog.1)))
 }
 
 /// Recursively builds the page tree structure from PDF objects.
@@ -81,48 +81,62 @@ pub(crate) fn create_page_tree_arena(tokenizer: &mut Tokenizer, catalog: (u64, u
 ///
 /// A `Result` indicating success or an error if parsing fails
 fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u64), parent: Option<NodeId>, nodes: &mut HashMap<NodeId, PageNode>) -> Result<()> {
-    if let Some(entry) = xrefs.iter().find(|x| x.obj_num == obj_ref.0 && x.gen_num == obj_ref.1) {
-        if let PDFObject::IndirectObject(_, _, value) = parse_with_offset(tokenizer, entry.value)? {
-            if let PDFObject::Dict(dict) = *value {
-                let is_page_tree = dict.named_value_was(TYPE, PAGES);
-                // If it is not a page tree, then it is a page
-                if !is_page_tree {
-                    let leaf_node = PageNode {
-                        attrs: dict,
-                        children: None,
-                        count: 0,
-                        parent: None,
-                    };
-                    nodes.insert(obj_ref.0, leaf_node);
-                    return Ok(())
-                }
-                if let Some(kids) = dict.get_array_value(KIDS) {
-                    let len = kids.len();
-                    let children = if len > 0 {
-                        let parent = Some(obj_ref.0);
-                        let mut children: Vec<NodeId> = Vec::new();
-                        for kid in kids {
-                            if let PDFObject::ObjectRef(obj_num, gen_num) = kid {
-                                children.push(*obj_num);
-                                build_page_tree(tokenizer, xrefs, (*obj_num, *gen_num), parent, nodes)?;
-                            }
-                        }
-                        Some(children)
-                    } else {
-                        None
-                    };
-                    let count = children.as_ref().map(|children| children.len()).unwrap_or(0);
-                    let page_node = PageNode {
-                        attrs: dict,
-                        children,
-                        count,
-                        parent,
-                    };
-                    nodes.insert(obj_ref.0, page_node);
-                }
+    let entry = xrefs.iter().find(|x| x.obj_num == obj_ref.0 && x.gen_num == obj_ref.1).ok_or_else(|| Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))?;
+    let obj = match parse_with_offset(tokenizer, entry.value)? {
+        PDFObject::IndirectObject(_, _, value) => *value,
+        _ => return Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))
+    };
+    // Check if the object is a dictionary
+    if !obj.is_dict() {
+        return Err(Error::new(PAGE_PARSE_ERROR, "Page attributes is not a dict"));
+    }
+    let dict = obj.to_dict().unwrap();
+    let is_page_tree = dict.named_value_was(TYPE, PAGES);
+    // If it is not a page tree, then it is a page
+    if !is_page_tree {
+        let leaf_node = PageNode {
+            attrs: dict,
+            children: None,
+            count: 0,
+            parent: None,
+        };
+        nodes.insert(obj_ref.0, leaf_node);
+        return Ok(())
+    }
+    let count = match dict.get_u64_num(COUNT) {
+        Some(count) => count as usize,
+        _ => return Err(Error::new(PAGE_PARSE_ERROR, "Page count not exist or not a number"))
+    };
+    let page_node = if count == 0 {
+        PageNode {
+            attrs: dict,
+            children: None,
+            count,
+            parent,
+        }
+    } else {
+        let kids = match dict.get_array_value(KIDS) {
+            Some(kids) => kids,
+            _ => return Err(Error::new(PAGE_PARSE_ERROR, "Page kids not exist or not an array"))
+        };
+        let mut children: Vec<NodeId> = Vec::with_capacity(kids.len());
+        let tmp = Some(obj_ref.0);
+        for kid in kids {
+            if let PDFObject::ObjectRef(obj_num, gen_num) = kid {
+                children.push(*obj_num);
+                build_page_tree(tokenizer, xrefs, (*obj_num, *gen_num), tmp, nodes)?;
+            } else {
+                return Err(Error::new(PAGE_PARSE_ERROR, "Page kids not exist or not an object reference"))
             }
         }
-    }
+        PageNode {
+            attrs: dict,
+            children: Some(children),
+            count,
+            parent,
+        }
+    };
+    nodes.insert(obj_ref.0, page_node);
     Ok(())
 }
 

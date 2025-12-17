@@ -88,7 +88,7 @@ impl Token {
     {
         let m = func(&self);
         if !m {
-            return Err(Error::new(EXCEPT_TOKEN, "Token kind mistake.".into()));
+            return Err(Error::new(EXCEPT_TOKEN, "Token kind mistake."));
         }
         Ok(self)
     }
