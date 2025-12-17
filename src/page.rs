@@ -26,7 +26,7 @@ pub(crate) struct PageTreeArean {
 pub(crate) struct PageNode {
     attrs: Dictionary,
     count: usize,
-    children: Option<Vec<NodeId>>,
+    kids: Option<Vec<NodeId>>,
     parent_id: Option<NodeId>,
 }
 
@@ -95,7 +95,7 @@ fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u
     if !is_page_tree {
         let leaf_node = PageNode {
             attrs: dict,
-            children: None,
+            kids: None,
             count: 0,
             parent_id,
         };
@@ -106,34 +106,29 @@ fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u
         Some(count) => count as usize,
         _ => return Err(Error::new(PAGE_PARSE_ERROR, "Page count not exist or not a number"))
     };
-    let page_node = if count == 0 {
-        PageNode {
-            attrs: dict,
-            children: None,
-            count,
-            parent_id,
-        }
-    } else {
-        let kids = match dict.get_array_value(KIDS) {
+    let mut kids = None;
+    if count > 0 {
+        let arr = match dict.get_array_value(KIDS) {
             Some(kids) => kids,
             _ => return Err(Error::new(PAGE_PARSE_ERROR, "Page kids not exist or not an array"))
         };
-        let mut children: Vec<NodeId> = Vec::with_capacity(kids.len());
+        let mut children: Vec<NodeId> = Vec::with_capacity(arr.len());
         let tmp = Some(obj_ref.0);
-        for kid in kids {
+        for kid in arr {
             if let PDFObject::ObjectRef(obj_num, gen_num) = kid {
                 children.push(*obj_num);
                 build_page_tree(tokenizer, xrefs, (*obj_num, *gen_num), tmp, nodes)?;
             } else {
-                return Err(Error::new(PAGE_PARSE_ERROR, "Page kids not exist or not an object reference"))
+                return Err(Error::new(PAGE_PARSE_ERROR, "Page kids not exist or not an object reference"));
             }
         }
-        PageNode {
-            attrs: dict,
-            children: Some(children),
-            count,
-            parent_id,
-        }
+        kids = Some(children)
+    };
+    let page_node = PageNode {
+        attrs: dict,
+        kids,
+        count,
+        parent_id,
     };
     nodes.insert(obj_ref.0, page_node);
     Ok(())
