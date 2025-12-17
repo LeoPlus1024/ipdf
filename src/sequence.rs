@@ -1,5 +1,5 @@
 use std::cmp::min;
-use crate::bytes::{count_leading_line_endings, line_ending};
+use crate::utils::{count_leading_line_endings, line_ending};
 use crate::error::Result;
 use crate::error::error_kind::{EOF, SEEK_EXEED_MAX_SIZE};
 use std::fs::File;

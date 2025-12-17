@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::bytes::xrefs_search;
+use crate::utils::xrefs_search;
 use crate::constants::{COUNT, KIDS, PAGES, TYPE};
 use crate::error::error_kind::{PAGE_PARSE_ERROR};
 use crate::error::{Error, Result};

@@ -9,7 +9,7 @@ use crate::sequence::Sequence;
 use crate::tokenizer::Token::{Bool, Delimiter, Eof, Id, Key, Number};
 use log::debug;
 use std::ops::Range;
-use crate::bytes::{hexdump, line_ending};
+use crate::utils::{hexdump, line_ending};
 
 /// Common end characters
 const COMMON_END_CHARS: [char; 11] = [

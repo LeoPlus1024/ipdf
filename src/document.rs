@@ -1,4 +1,4 @@
-use crate::bytes::{count_leading_line_endings, line_ending, literal_to_u64};
+use crate::utils::{count_leading_line_endings, line_ending, literal_to_u64};
 use crate::constants::pdf_key::{START_XREF, TRAILER, XREF};
 use crate::constants::{PREV, ROOT};
 use crate::error::error_kind::{

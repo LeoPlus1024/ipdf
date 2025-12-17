@@ -6,7 +6,7 @@ use crate::objects::{Dictionary, PDFNumber, PDFObject, Stream, XEntry};
 use crate::tokenizer::Token::{Delimiter, Id, Key, Number};
 use crate::tokenizer::{Token, Tokenizer};
 use std::collections::HashMap;
-use crate::bytes::hex2bytes;
+use crate::utils::hex2bytes;
 
 pub(crate) fn parse_with_offset(tokenizer: &mut Tokenizer,offset:u64) -> Result<PDFObject>{
     tokenizer.seek(offset)?;
