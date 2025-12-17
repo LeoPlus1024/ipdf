@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::utils::xrefs_search;
-use crate::constants::{COUNT, KIDS, PAGES, TYPE};
+use crate::constants::{COUNT, KIDS, OUTLINES, PAGES, TYPE};
 use crate::error::error_kind::{PAGE_PARSE_ERROR};
 use crate::error::{Error, Result};
 use crate::objects::{Dictionary, PDFObject, XEntry};
@@ -164,8 +164,8 @@ impl PageTreeArean {
     /// # Returns
     ///
     /// A reference to the root `PageNode`
-    pub fn get_root_node(&self) -> &PageNode {
-        self.nodes.get(&self.root_id).unwrap()
+    pub fn get_root_node(&self) -> Option<&PageNode> {
+        self.nodes.get(&self.root_id)
     }
 
     /// Gets the total number of pages in the document.

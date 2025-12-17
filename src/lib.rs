@@ -7,4 +7,4 @@ pub mod sequence;
 pub(crate) mod parser;
 pub(crate) mod constants;
 pub(crate) mod tokenizer;
-pub(crate) mod page;
+pub(crate) mod catalog;

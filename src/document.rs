@@ -12,7 +12,7 @@ use crate::tokenizer::Tokenizer;
 use crate::vpdf::PDFVersion;
 use log::debug;
 use std::path::PathBuf;
-use crate::page::{create_page_tree_arena, PageTreeArean};
+use crate::catalog::{create_page_tree_arena, PageTreeArean};
 
 /// Represent a PDF document
 pub struct PDFDocument {

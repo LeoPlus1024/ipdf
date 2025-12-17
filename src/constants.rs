@@ -66,6 +66,7 @@ pub(crate) const COUNT: &str = "Count";
 pub(crate) const PAGES: &str = "Pages";
 /// Key for catalog object type.
 pub(crate) const CATALOG: &str = "Catalog";
-
+/// Key for outlines.
+pub(crate) const OUTLINES: &str = "Outlines";
 /// Key for stream length.
 pub(crate) const LENGTH: &str = "Length";
