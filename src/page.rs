@@ -27,7 +27,7 @@ pub(crate) struct PageNode {
     attrs: Dictionary,
     count: usize,
     children: Option<Vec<NodeId>>,
-    parent: Option<NodeId>,
+    parent_id: Option<NodeId>,
 }
 
 /// Creates a page tree arena from the PDF catalog.
@@ -80,17 +80,16 @@ pub(crate) fn create_page_tree_arena(tokenizer: &mut Tokenizer, catalog: (u64, u
 /// # Returns
 ///
 /// A `Result` indicating success or an error if parsing fails
-fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u64), parent: Option<NodeId>, nodes: &mut HashMap<NodeId, PageNode>) -> Result<()> {
+fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u64), parent_id: Option<NodeId>, nodes: &mut HashMap<NodeId, PageNode>) -> Result<()> {
     let entry = xrefs.iter().find(|x| x.obj_num == obj_ref.0 && x.gen_num == obj_ref.1).ok_or_else(|| Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))?;
     let obj = match parse_with_offset(tokenizer, entry.value)? {
         PDFObject::IndirectObject(_, _, value) => *value,
         _ => return Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))
     };
-    // Check if the object is a dictionary
-    if !obj.is_dict() {
-        return Err(Error::new(PAGE_PARSE_ERROR, "Page attributes is not a dict"));
-    }
-    let dict = obj.to_dict().unwrap();
+    let dict = match obj {
+        PDFObject::Dict(dict) => dict,
+        _ => return Err(Error::new(PAGE_PARSE_ERROR, "Page attributes is not a dict"))
+    };
     let is_page_tree = dict.named_value_was(TYPE, PAGES);
     // If it is not a page tree, then it is a page
     if !is_page_tree {
@@ -98,7 +97,7 @@ fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u
             attrs: dict,
             children: None,
             count: 0,
-            parent: None,
+            parent_id,
         };
         nodes.insert(obj_ref.0, leaf_node);
         return Ok(())
@@ -112,7 +111,7 @@ fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u
             attrs: dict,
             children: None,
             count,
-            parent,
+            parent_id,
         }
     } else {
         let kids = match dict.get_array_value(KIDS) {
@@ -133,7 +132,7 @@ fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u
             attrs: dict,
             children: Some(children),
             count,
-            parent,
+            parent_id,
         }
     };
     nodes.insert(obj_ref.0, page_node);
