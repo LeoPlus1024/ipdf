@@ -2,21 +2,34 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::string::FromUtf8Error;
 use crate::error::error_kind::{FLOAT_PARSE_ERROR, INT_PARSE_ERROR, INVALID_UTF8_STR, STD_IO_ERROR};
 
+/// Macro to define error kinds with codes and messages.
+///
+/// This macro generates a module containing error kind constants, each with a unique code and descriptive message.
+///
+/// # Arguments
+///
+/// * `$id` - The identifier for the error kind
+/// * `$code` - The numeric error code
+/// * `$message` - The descriptive error message
 macro_rules! error_kind {
     ($(($id:ident,$code:literal,$message:literal)),+$(,)?) => {
+        /// Module containing error kind constants.
         pub(crate) mod error_kind{
         $(
+            /// Error kind constant with code and message.
             pub(crate) const $id: super::Kind = ($code, $message);
         )+
     }
     };
 }
 
+/// Type alias for error kind, consisting of a code and message.
 pub(crate) type Kind = (u16, &'static str);
 
+/// Type alias for results that may contain errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Enumurate all error kind
+/// Enumeration of all error kinds used in the PDF parser.
 error_kind!(
     (INVALID_PDF_VERSION, 1000, "Invalid PDF version"),
     (STD_IO_ERROR, 1001, "Std IO Error"),
@@ -42,18 +55,33 @@ error_kind!(
     (PAGE_PARSE_ERROR,1021, "Page parse error"),
 );
 
+/// Inner structure holding error details.
 #[derive(Debug)]
 struct Inner {
+    /// Numeric error code.
     pub code: u16,
+    /// Descriptive error message.
     pub message: String,
 }
 
+/// Custom error type for PDF parsing operations.
 #[derive(Debug)]
 pub struct Error {
+    /// Inner error details.
     inner: Inner,
 }
 
 impl Error {
+    /// Creates a new error with the specified kind and message.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - The error kind containing code and base message
+    /// * `message` - The specific error message
+    ///
+    /// # Returns
+    ///
+    /// A new Error instance
     pub(crate) fn new<T>(kind: Kind, message: T) -> Self where T: Into<String>{
         let message = message.into();
         Self {
@@ -66,6 +94,15 @@ impl Error {
 }
 
 impl From<Kind> for Error {
+    /// Converts an error kind to an Error instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - The error kind to convert
+    ///
+    /// # Returns
+    ///
+    /// An Error instance with the kind's code and message
     fn from(kind: Kind) -> Self {
         Self {
             inner: Inner {
@@ -77,6 +114,15 @@ impl From<Kind> for Error {
 }
 
 impl From<std::io::Error> for Error {
+    /// Converts a standard IO error to a custom Error instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The IO error to convert
+    ///
+    /// # Returns
+    ///
+    /// A custom Error instance with STD_IO_ERROR kind
     fn from(e: std::io::Error) -> Self {
         Self {
             inner: Inner {
@@ -88,6 +134,15 @@ impl From<std::io::Error> for Error {
 }
 
 impl From<FromUtf8Error> for Error {
+    /// Converts a UTF-8 conversion error to a custom Error instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The UTF-8 conversion error to convert
+    ///
+    /// # Returns
+    ///
+    /// A custom Error instance with INVALID_UTF8_STR kind
     fn from(e: FromUtf8Error) -> Self {
         Self {
             inner: Inner {
@@ -98,8 +153,16 @@ impl From<FromUtf8Error> for Error {
     }
 }
 
-
 impl From<ParseIntError> for Error{
+    /// Converts an integer parsing error to a custom Error instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The integer parsing error to convert
+    ///
+    /// # Returns
+    ///
+    /// A custom Error instance with INT_PARSE_ERROR kind
     fn from(e: ParseIntError) -> Self {
         Self {
             inner: Inner {
@@ -111,6 +174,15 @@ impl From<ParseIntError> for Error{
 }
 
 impl From<ParseFloatError> for Error {
+    /// Converts a float parsing error to a custom Error instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The float parsing error to convert
+    ///
+    /// # Returns
+    ///
+    /// A custom Error instance with FLOAT_PARSE_ERROR kind
     fn from(e: ParseFloatError) -> Self {
 
         Self {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::bytes::xrefs_search;
 use crate::constants::{COUNT, KIDS, PAGES, TYPE};
 use crate::error::error_kind::{PAGE_PARSE_ERROR};
 use crate::error::{Error, Result};
@@ -45,22 +46,28 @@ pub(crate) struct PageNode {
 ///
 /// A `Result` containing the constructed `PageTreeArean` or an error if the page catalog cannot be found
 pub(crate) fn create_page_tree_arena(tokenizer: &mut Tokenizer, catalog: (u64, u64), xrefs: &[XEntry]) -> Result<PageTreeArean> {
-    if let Some(entry) = xrefs.iter().find(|x| x.obj_num == catalog.0 && x.gen_num == catalog.1) {
-        let obj = parse_with_offset(tokenizer, entry.value)?;
-        if let PDFObject::IndirectObject(_, _, value) = obj {
-            if let PDFObject::Dict(dict) = *value {
-                match dict.get(PAGES).map(|obj| obj.as_object_ref().unwrap()) {
-                    Some((obj_num, gen_num)) => {
-                        let mut nodes = HashMap::<NodeId, PageNode>::new();
-                        build_page_tree(tokenizer, xrefs, (obj_num, gen_num), None, &mut nodes)?;
-                        return Ok(PageTreeArean::new(obj_num, nodes))
-                    }
-                    _ => {}
-                }
+    let entry = xrefs_search(xrefs, catalog)?;
+    let obj = parse_with_offset(tokenizer, entry.value)?;
+    let catalog_attr = match obj {
+        PDFObject::IndirectObject(_, _, value) => value.to_dict(),
+        _ => return Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", catalog.0, catalog.1)))
+    };
+    match catalog_attr {
+        Some(dict) => {
+            let mut page_tree_arean = None;
+            if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = dict.get(PAGES) {
+                let mut nodes = HashMap::new();
+                build_page_tree(tokenizer, xrefs, (*obj_num, *gen_num), None, &mut nodes)?;
+                page_tree_arean = Some(PageTreeArean::new(*obj_num, nodes));
+            }
+            match page_tree_arean {
+                Some(value) => Ok(value),
+                None => Err(Error::new(PAGE_PARSE_ERROR, "Catalog attribute not contain pages attr."))
             }
         }
+        _ => Err(Error::new(PAGE_PARSE_ERROR, "Catalog attribute not found or not a dict."))
     }
-    Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", catalog.0, catalog.1)))
+
 }
 
 /// Recursively builds the page tree structure from PDF objects.
@@ -81,7 +88,7 @@ pub(crate) fn create_page_tree_arena(tokenizer: &mut Tokenizer, catalog: (u64, u
 ///
 /// A `Result` indicating success or an error if parsing fails
 fn build_page_tree(tokenizer: &mut Tokenizer, xrefs: &[XEntry], obj_ref: (u64, u64), parent_id: Option<NodeId>, nodes: &mut HashMap<NodeId, PageNode>) -> Result<()> {
-    let entry = xrefs.iter().find(|x| x.obj_num == obj_ref.0 && x.gen_num == obj_ref.1).ok_or_else(|| Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))?;
+    let entry = xrefs_search(xrefs, obj_ref)?;
     let obj = match parse_with_offset(tokenizer, entry.value)? {
         PDFObject::IndirectObject(_, _, value) => *value,
         _ => return Err(Error::new(PAGE_PARSE_ERROR, format!("Can not find page catalog with {} {}", obj_ref.0, obj_ref.1)))
