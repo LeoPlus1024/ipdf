@@ -23,10 +23,10 @@ pub(crate) fn parse(mut tokenizer: &mut Tokenizer) -> Result<PDFObject>
 fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
     match token {
         Delimiter(delimiter) => match delimiter.as_str() {
-            "<<" =>{
+            "<<" => {
                 let dict = parse_dict(tokenizer)?;
                 // If the next token is stream, then it is a stream
-                if tokenizer.check_next_token0(false,|token| token.key_was(STREAM))? {
+                if tokenizer.check_next_token0(false, |token| token.key_was(STREAM))? {
                     return parse_stream(tokenizer, dict);
                 }
                 Ok(PDFObject::Dict(dict))
@@ -34,7 +34,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             "[" => parse_array(tokenizer),
             "/" => parse_named(tokenizer),
             "<" | "(" => parse_string(tokenizer, delimiter == "("),
-            &_ => todo!(),
+            _ => Err(PDFParseError0(format!("Delimiter '{}' not implemented", delimiter))),
         },
         Key(key) => match key.as_str() {
             pdf_key::NULL => Ok(PDFObject::Null),
@@ -131,7 +131,7 @@ fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<Dictionary> {
             let value = parser0(&mut tokenizer, token)?;
             entries.insert(named, value);
         } else {
-            return Err(PDFError::PDFParseError("Except a named token."));
+            return Err(PDFParseError("Except a named token."));
         }
     }
     Ok(Dictionary::new(entries))
