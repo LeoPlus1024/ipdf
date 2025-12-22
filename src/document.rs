@@ -1,4 +1,4 @@
-use crate::catalog::{decode_catalog_data, PageTreeArean};
+use crate::catalog::{decode_catalog_data, OutlineTreeArean, PageTreeArean};
 use crate::constants::pdf_key::{START_XREF, XREF};
 use crate::constants::{PREV, ROOT};
 use crate::error::PDFError::{InvalidPDFDocument, PDFParseError, XrefTableNotFound};
@@ -23,7 +23,9 @@ pub struct PDFDocument {
     /// Tokenizer for parsing the PDF content.
     tokenizer: Tokenizer,
     /// Page tree arena containing the hierarchical page structure.
-    page_tree_arena: PageTreeArean
+    page_tree_arena: PageTreeArean,
+    /// Outline tree arena containing the hierarchical outline structure.
+    outline_tree_arean: Option<OutlineTreeArean>
 }
 
 impl PDFDocument {
@@ -64,12 +66,13 @@ impl PDFDocument {
         tokenizer.seek(offset)?;
         // Merge all xref table
         let (xrefs, catalog) = merge_xref_table(&mut tokenizer)?;
-        let (page_tree_arena, _) = decode_catalog_data(&mut tokenizer,catalog,&xrefs)?;
+        let (page_tree_arena, outline_tree_arean) = decode_catalog_data(&mut tokenizer,catalog,&xrefs)?;
         let document = PDFDocument {
             xrefs,
             version,
             tokenizer,
-            page_tree_arena
+            page_tree_arena,
+            outline_tree_arean
         };
         Ok(document)
     }

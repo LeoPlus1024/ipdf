@@ -53,7 +53,7 @@ pub(crate) struct PageNode {
 ///
 /// The outline provides a hierarchical navigation structure for the document,
 /// typically displayed in the PDF viewer's sidebar.
-pub(crate) struct Outline {
+pub(crate) struct OutlineTreeArean {
     /// The ID of the root node in the outline tree.
     root_id: NodeId,
     /// A collection of all nodes in the outline tree, indexed by their IDs.
@@ -64,7 +64,7 @@ pub(crate) struct Outline {
 ///
 /// Each outline node corresponds to a bookmark entry in the PDF document.
 pub(crate) struct OutlineNode {
-    count: usize,
+    count: i64,
     /// The title of the bookmark.
     title: Option<String>,
     /// Optional ID of the previous sibling node.
@@ -76,9 +76,7 @@ pub(crate) struct OutlineNode {
     /// Optional ID of the last child node.
     last_id: Option<NodeId>,
     /// Optional ID of the parent node.
-    parent_id: Option<NodeId>,
-    /// Optional list of child node IDs.
-    children: Option<Vec<NodeId>>,
+    parent_id: Option<NodeId>
 }
 
 /// Creates a page tree arena from the PDF catalog.
@@ -100,7 +98,7 @@ pub(crate) fn decode_catalog_data(
     tokenizer: &mut Tokenizer,
     catalog: (u32, u16),
     xrefs: &[XEntry],
-) -> Result<(PageTreeArean, Option<Outline>)> {
+) -> Result<(PageTreeArean, Option<OutlineTreeArean>)> {
     let entry = xrefs_search(xrefs, catalog)?;
     let obj = parse_with_offset(tokenizer, entry.value)?;
     let catalog_attr = match obj {
@@ -125,7 +123,7 @@ pub(crate) fn decode_catalog_data(
                 let obj_num = *obj_num;
                 let gen_num = *gen_num;
                 build_outline_tree(tokenizer, xrefs, obj_num, gen_num, None, &mut map)?;
-                outline = Some(Outline::new(mixture_node_id!(obj_num, gen_num), map));
+                outline = Some(OutlineTreeArean::new(mixture_node_id!(obj_num, gen_num), map));
             }
             Ok((page_tree_arean, outline))
         }
@@ -222,6 +220,7 @@ fn build_outline_tree(
     map: &mut HashMap<NodeId, OutlineNode>,
 ) -> Result<()> {
     let entry = xrefs_search(xrefs, (obj_num, gen_num))?;
+    println!("obj_num:{},gen_num:{},offset:{}", obj_num, gen_num, entry.value);
     let object = parse_with_offset(tokenizer, entry.value)?;
     let (_, _, attr) = match object.as_indirect_object() {
         Some((obj_num, gen_num, obj)) => match obj.as_dict() {
@@ -235,7 +234,6 @@ fn build_outline_tree(
     let mut next_id = None;
     let mut first_id = None;
     let mut last_id = None;
-    let mut count = 0usize;
     let node_id = mixture_node_id!(obj_num, gen_num);
     if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(PREV) {
         prev_id = Some(mixture_node_id!(*obj_num, *gen_num));
@@ -247,13 +245,17 @@ fn build_outline_tree(
     if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(LAST) {
         last_id = Some(mixture_node_id!(*obj_num, *gen_num));
     }
-    if let Some(PDFObject::Number(PDFNumber::Unsigned(value))) = attr.get(COUNT) {
-        count = *value as usize;
-    }
+
     if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(NEXT) {
         next_id = Some(mixture_node_id!(*obj_num, *gen_num));
         build_outline_tree(tokenizer, xrefs, *obj_num, *gen_num, Some(node_id), map)?;
     }
+
+    let count = match attr.get(COUNT) {
+        Some(PDFObject::Number(PDFNumber::Signed(value))) => *value,
+        Some(PDFObject::Number(PDFNumber::Unsigned(value))) => *value as i64,
+        _ => 0i64
+    };
 
     let outline_node = OutlineNode {
         count,
@@ -262,8 +264,7 @@ fn build_outline_tree(
         next_id,
         first_id,
         last_id,
-        parent_id,
-        children: None,
+        parent_id
     };
     map.insert(node_id, outline_node);
     Ok(())
@@ -306,7 +307,7 @@ impl PageTreeArean {
     }
 }
 
-impl Outline {
+impl OutlineTreeArean {
     pub(crate) fn new(root_id: NodeId, nodes: HashMap<NodeId, OutlineNode>) -> Self {
         Self { root_id, nodes }
     }

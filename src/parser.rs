@@ -164,8 +164,18 @@ fn parse_string(tokenizer: &mut Tokenizer, literal_str: bool) -> Result<PDFObjec
     let end_chr = if literal_str { ')' } else { '>' };
     let mut is_escape = false;
     let result = tokenizer.loop_util(&[], |chr| {
-        is_escape = chr == '\\' && !is_escape;
-        Ok(chr == end_chr && !is_escape)
+        let m = if chr == '\\' {
+            is_escape = !is_escape;
+            false
+        } else {
+            let mut end = chr == end_chr;
+            if is_escape {
+                end = false;
+            }
+            is_escape = false;
+            end
+        };
+        Ok(m)
     });
     match result {
         Ok(range) => {
