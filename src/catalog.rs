@@ -220,7 +220,6 @@ fn build_outline_tree(
     map: &mut HashMap<NodeId, OutlineNode>,
 ) -> Result<()> {
     let entry = xrefs_search(xrefs, (obj_num, gen_num))?;
-    println!("obj_num:{},gen_num:{},offset:{}", obj_num, gen_num, entry.value);
     let object = parse_with_offset(tokenizer, entry.value)?;
     let (_, _, attr) = match object.as_indirect_object() {
         Some((obj_num, gen_num, obj)) => match obj.as_dict() {
