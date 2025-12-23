@@ -1,14 +1,14 @@
 use crate::constants::pdf_key::{END_OBJ, END_STREAM, OBJ, R, STREAM};
 use crate::constants::*;
 use crate::error::{PDFError, Result};
-use crate::objects::{Dictionary, PDFNumber, PDFObject, Stream, XEntry};
+use crate::objects::{Dictionary, PDFNumber, PDFObject, PDFStrKind, PDFString, Stream, XEntry};
 use crate::tokenizer::Token::{Delimiter, Id, Key, Number};
 use crate::tokenizer::{Token, Tokenizer};
 use std::collections::HashMap;
 use crate::error::PDFError::{EOFError, PDFParseError, PDFParseError0};
 use crate::utils::hex2bytes;
 
-pub(crate) fn parse_with_offset(tokenizer: &mut Tokenizer,offset:u64) -> Result<PDFObject>{
+pub(crate) fn parse_with_offset(tokenizer: &mut Tokenizer, offset: u64) -> Result<PDFObject> {
     tokenizer.seek(offset)?;
     parse(tokenizer)
 }
@@ -43,7 +43,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
             pdf_key::TRAILER => {
                 let token = tokenizer.next_token()?;
                 parser0(tokenizer, token)
-            },
+            }
             &_ => Err(PDFParseError0(format!("Key '{}' not implemented", key))),
         }
         Number(number) => match number {
@@ -54,7 +54,7 @@ fn parser0(tokenizer: &mut Tokenizer, token: Token) -> Result<PDFObject> {
                 }
                 let is_obj = tokenizer.check_next_token(|token| token.key_was(R) || token.key_was(OBJ))?;
                 if is_obj {
-                    return parse_obj(tokenizer, Some(value as u32))
+                    return parse_obj(tokenizer, Some(value as u32));
                 }
                 Ok(PDFObject::Number(number))
             }
@@ -79,11 +79,11 @@ pub(crate) fn parse_text_xref(tokenizer: &mut Tokenizer) -> Result<Vec<XEntry>> 
             _ => return Err(PDFParseError0(format!("Except a token with 'f' or 'n' but it is '{}'", state)))
         };
         let obj_num = obj_num + i;
-        let entry = XEntry::new (
+        let entry = XEntry::new(
             obj_num,
             gen_num,
             value,
-            using
+            using,
         );
         entries.push(entry);
     }
@@ -106,15 +106,14 @@ fn parse_obj(tokenizer: &mut Tokenizer, option: Option<u32>) -> Result<PDFObject
                 // Except a token with 'endobj'
                 tokenizer.next_token()?.except(|token| token.key_was(END_OBJ))?;
                 return Ok(PDFObject::IndirectObject(obj_num, gen_num, Box::new(value)));
-            },
+            }
             _ => {
-                PDFObject::ObjectRef(obj_num,gen_num)
+                PDFObject::ObjectRef(obj_num, gen_num)
             }
         };
-        return Ok(object)
+        return Ok(object);
     }
     Err(PDFParseError("Except a token with R or obj"))
-
 }
 fn parse_dict(mut tokenizer: &mut Tokenizer) -> Result<Dictionary> {
     let mut entries = HashMap::<String, PDFObject>::new();
@@ -156,7 +155,6 @@ fn parse_array(tokenizer: &mut Tokenizer) -> Result<PDFObject> {
         }
         let object = parser0(tokenizer, token)?;
         elements.push(object);
-
     }
 }
 
@@ -187,7 +185,9 @@ fn parse_string(tokenizer: &mut Tokenizer, literal_str: bool) -> Result<PDFObjec
             };
             // Remove '>' or ')'
             tokenizer.remove_buf_len(1);
-            Ok(PDFObject::String(buf))
+            let kind = if literal_str { PDFStrKind::Literal } else { PDFStrKind::Hexadecimal };
+            let value = PDFString::new(kind, buf);
+            Ok(PDFObject::String(value))
         }
         Err(_e) => Err(PDFParseError("String did not close properly")),
     }
@@ -209,7 +209,7 @@ pub(crate) fn parse_stream(tokenizer: &mut Tokenizer, metadata: Dictionary) -> R
         let stream = Stream::new(metadata, buf);
         // Except next token is `endstream`
         tokenizer.next_token()?.except(|token| token.key_was(END_STREAM))?;
-        return Ok(PDFObject::Stream(stream))
+        return Ok(PDFObject::Stream(stream));
     }
     Err(PDFParseError("Stream length is not found"))
 }

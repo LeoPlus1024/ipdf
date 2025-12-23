@@ -27,6 +27,16 @@ pub struct Stream {
     metadata: Dictionary,
 }
 
+pub(crate) enum PDFStrKind {
+    Literal,
+    Hexadecimal,
+}
+
+pub struct PDFString {
+    kind: PDFStrKind,
+    buf: Vec<u8>,
+}
+
 pub enum PDFObject {
     /// The keywords true and false represent boolean objects with values true and false.
     Bool(bool),
@@ -47,7 +57,7 @@ pub enum PDFObject {
     ///  /A;Name_With-various***characters?.
     /// ```
     Named(String),
-    String(Vec<u8>),
+    String(PDFString),
     /// ## Arrays
     /// An array is a sequence of PDF objects. An array may contain a mixture of object
     /// types. An array is represented as a left square bracket ( [ ), followed by a sequence
@@ -199,10 +209,11 @@ impl PDFObject {
             _ => false,
         }
     }
-    /// Returns the string byte sequence of the object if it is a string.
-    pub fn as_str_bytes(&self) -> Option<&[u8]> {
+
+    /// Returns the string value of the object if it is a string.
+    pub fn as_string(&self) -> Option<&PDFString> {
         match self {
-            PDFObject::String(buf) => Some(buf),
+            PDFObject::String(s) => Some(s),
             _ => None,
         }
     }
@@ -394,5 +405,11 @@ impl Stream {
     /// Creates a new stream with the given metadata.
     pub(crate) fn new(metadata: Dictionary,buf:Vec<u8>) -> Self {
         Stream { metadata }
+    }
+}
+
+impl PDFString {
+    pub(crate) fn new(kind: PDFStrKind,buf: Vec<u8>) -> Self {
+        PDFString { kind, buf }
     }
 }

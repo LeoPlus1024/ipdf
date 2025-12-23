@@ -221,7 +221,7 @@ fn build_outline_tree(
 ) -> Result<()> {
     let entry = xrefs_search(xrefs, (obj_num, gen_num))?;
     let object = parse_with_offset(tokenizer, entry.value)?;
-    let (_, _, attr) = match object.as_indirect_object() {
+    let (_, _, attrs) = match object.as_indirect_object() {
         Some((obj_num, gen_num, obj)) => match obj.as_dict() {
             Some(dict) => (obj_num, gen_num, dict),
             _ => return Err(PDFParseError("Outline attribute except a dict.")),
@@ -234,28 +234,27 @@ fn build_outline_tree(
     let mut first_id = None;
     let mut last_id = None;
     let node_id = mixture_node_id!(obj_num, gen_num);
-    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(PREV) {
+    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attrs.get(PREV) {
         prev_id = Some(mixture_node_id!(*obj_num, *gen_num));
     }
-    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(FIRST) {
+    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attrs.get(FIRST) {
         first_id = Some(mixture_node_id!(*obj_num, *gen_num));
         build_outline_tree(tokenizer, xrefs, *obj_num, *gen_num, Some(node_id), map)?;
     }
-    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(LAST) {
+    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attrs.get(LAST) {
         last_id = Some(mixture_node_id!(*obj_num, *gen_num));
     }
 
-    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attr.get(NEXT) {
+    if let Some(PDFObject::ObjectRef(obj_num, gen_num)) = attrs.get(NEXT) {
         next_id = Some(mixture_node_id!(*obj_num, *gen_num));
         build_outline_tree(tokenizer, xrefs, *obj_num, *gen_num, Some(node_id), map)?;
     }
 
-    let count = match attr.get(COUNT) {
+    let count = match attrs.get(COUNT) {
         Some(PDFObject::Number(PDFNumber::Signed(value))) => *value,
         Some(PDFObject::Number(PDFNumber::Unsigned(value))) => *value as i64,
         _ => 0i64
     };
-
     let outline_node = OutlineNode {
         count,
         title,
@@ -263,7 +262,7 @@ fn build_outline_tree(
         next_id,
         first_id,
         last_id,
-        parent_id
+        parent_id,
     };
     map.insert(node_id, outline_node);
     Ok(())
