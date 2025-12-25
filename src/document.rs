@@ -3,7 +3,7 @@ use crate::constants::pdf_key::{START_XREF, XREF};
 use crate::constants::{INFO, PREV, ROOT};
 use crate::error::PDFError::{InvalidPDFDocument, ObjectAttrMiss, PDFParseError, XrefTableNotFound};
 use crate::error::Result;
-use crate::objects::{PDFNumber, PDFObject, XEntry};
+use crate::objects::{Dictionary, PDFNumber, PDFObject, XEntry};
 use crate::parser::{parse, parse_text_xref, parse_with_offset};
 use crate::sequence::{FileSequence, Sequence};
 use crate::tokenizer::Tokenizer;
@@ -12,7 +12,20 @@ use std::path::PathBuf;
 use crate::vpdf::PDFVersion;
 
 pub struct PDFDescribe {
-
+    /// (Optional) The name of the application that converted the document from its native format to
+    /// PDF.
+    producer: Option<String>,
+    /// (Optional) If the document was converted into a PDF document from another form, the name
+    /// of the application that created the original document.
+    creator: Option<String>,
+    /// The date the document was created. It should be stored in an unambiguous format.
+    /// For example, 11 October 1992 13:11 is preferable to 11/10/92 1:11 pm. The date should
+    /// be in the same language as the document content.
+    creation_date: Option<String>,
+    /// (Optional) The name of the person who created the document.
+    author: Option<String>,
+    title: Option<String>,
+    mod_date: Option<String>,
 }
 
 /// Represents a PDF document with all its components and functionality.
@@ -82,7 +95,7 @@ impl PDFDocument {
             let entry = xrefs_search(&xrefs, obj)?;
             if let PDFObject::IndirectObject(_, _, value) = parse_with_offset(&mut tokenizer, entry.value)? {
                 if let PDFObject::Dict(dict) = *value {
-                    describe = Some(PDFDescribe::new());
+                    describe = Some(PDFDescribe::new(dict));
                 }
             }
         }
@@ -303,7 +316,14 @@ fn cal_xref_table_offset(sequence: &mut impl Sequence) -> Result<u64> {
 }
 
 impl PDFDescribe {
-    pub(crate) fn new() -> PDFDescribe {
-        PDFDescribe {}
+    pub(crate) fn new(dictionary: Dictionary) -> PDFDescribe {
+        PDFDescribe {
+            producer:None,
+            creator: None,
+            creation_date:None,
+            author: None,
+            title: None,
+            mod_date: None,
+        }
     }
 }
